@@ -39,9 +39,6 @@ var (
 	pathUUID      = "/path/to/uuid/"
 	pathImageBase = "/path/to/images/uuid/"
 	pathFilesBase = "/path/to/files/"
-	// pathUUID      = "E:/defacto2_net/cloned/www/uuid/"
-	// pathImageBase = "E:/defacto2_net/cloned/www/defacto2.2014/images/uuid/"
-	// pathFilesBase = "E:/defacto2_net/cloned/www/defacto2.2014/files/"
 	pathBackup  = fmt.Sprintf("%vbackups/", pathFilesBase)
 	images150x  = fmt.Sprintf("%v150x150/", pathImageBase)
 	images400x  = fmt.Sprintf("%v400x400/", pathImageBase)
