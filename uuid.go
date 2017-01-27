@@ -28,7 +28,7 @@ import (
 )
 
 const (
-	version  string = "Defacto2 UUID Tool 1.0.0" // Application title and version
+	version  string = "Defacto2 UUID Tool 1.0.1" // Application title and version
 	dbName   string = "defacto2"                 // Database name
 	dbServer string = "tcp(localhost:3306)"      // Database server connection, protocol (IP or domain address:port number)
 	dbUser   string = "root"                     // Database username to login
@@ -186,6 +186,8 @@ func scanPath(path string, output string, delete bool, rawData bool, m map[strin
 		skip["g_drive.zip"] = empty{}
 		skip["s_drive.zip"] = empty{}
 		skip["u_drive.zip"] = empty{}
+		skip["dosee-core.js"] = empty{}
+		skip["dosee-core.mem"] = empty{}
 	}
 
 	// handle found file results
