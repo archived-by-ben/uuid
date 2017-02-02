@@ -9,4 +9,4 @@ go:
 install:
   - go get -v github.com/go-sql-driver/mysql
   - go get -v github.com/dustin/go-humanize
-  - go get -v github.com/docopt/docopt-g
+  - go get -v github.com/docopt/docopt-go
