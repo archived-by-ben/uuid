@@ -28,7 +28,7 @@ import (
 )
 
 const (
-	version  string = "Defacto2 UUID Tool 1.0.3" // Application title and version
+	version  string = "Defacto2 UUID Tool 1.1.0" // Application title and version
 	dbServer string = "tcp(localhost:3306)"      // Database server connection, protocol (IP or domain address:port number)
 )
 
@@ -37,9 +37,9 @@ var (
 	dbUser        string // Database username for login
 	dbPass        string // Database username password for login [SHOULD BE LEFT BLANK]
 	pwPath        string // The path to a secured text file containing the dbUser login password
-	pathUUID      = "/path/to/uuid/"
-	pathImageBase = "/path/to/images/uuid/"
-	pathFilesBase = "/path/to/files/"
+	pathUUID      string
+	pathImageBase string
+	pathFilesBase string
 	pathBackup    = fmt.Sprintf("%vbackups/", pathFilesBase)
 	images150x    = fmt.Sprintf("%v150x150/", pathImageBase)
 	images400x    = fmt.Sprintf("%v400x400/", pathImageBase)
