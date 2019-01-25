@@ -1,4 +1,4 @@
-#/bin/sh
+#!/bin/sh
 #
 # Build time variables for the database connector configuration
 #
@@ -20,12 +20,28 @@ PATH_IMAGE=/opt/webapp/images/
 # Path to webapp generated files such as JSON/XML
 PATH_FILES=/opt/webapp/files/
 
-go build -ldflags "\
+# Make build the default Go command
+if [ $# -eq 0 ]; then
+	CMD=build
+else
+	CMD=$1
+fi
+
+# Handle any additional supplied arguments
+if [[ $CMD == "build" || $CMD == "install" ]]; then
+	shift 1
+	ARGS="$@ uuid.go"
+elif [ $CMD == "run" ]; then
+	shift 1
+	ARGS="uuid.go $@"
+fi
+
+go $CMD -ldflags "\
 -X main.dbName=$DB_NAME \
 -X main.dbUser=$DB_USER \
 -X main.pwPath=$PW_PATH \
 -X main.dbPass=$DB_PASS \
 -X main.pathUUID=$PATH_UUID \
 -X main.pathImageBase=$PATH_IMAGE \
--X main.pathFilesBase=$PATH_FILES \
-" $@ uuid.go
+-X main.pathFilesBase=$PATH_FILES" \
+	$ARGS
