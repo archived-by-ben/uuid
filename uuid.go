@@ -22,34 +22,35 @@ import (
 	"strings"
 	"time"
 
-	"github.com/docopt/docopt-go"
-	"github.com/dustin/go-humanize"
+	docopt "github.com/docopt/docopt-go"
+	humanize "github.com/dustin/go-humanize"
 	_ "github.com/go-sql-driver/mysql"
 )
 
 const (
-	version  string = "Defacto2 UUID Tool 1.0.1" // Application title and version
-	dbName   string = "defacto2"                 // Database name
+	version  string = "Defacto2 UUID Tool 1.0.3" // Application title and version
 	dbServer string = "tcp(localhost:3306)"      // Database server connection, protocol (IP or domain address:port number)
-	dbUser   string = "root"                     // Database username to login
-	pwPath   string = "/path/to/pw"              // The path to a secured text file containing the MySQL login password
 )
 
 var (
+	dbName        string // Database name
+	dbUser        string // Database username for login
+	dbPass        string // Database username password for login [SHOULD BE LEFT BLANK]
+	pwPath        string // The path to a secured text file containing the dbUser login password
 	pathUUID      = "/path/to/uuid/"
 	pathImageBase = "/path/to/images/uuid/"
 	pathFilesBase = "/path/to/files/"
-	pathBackup  = fmt.Sprintf("%vbackups/", pathFilesBase)
-	images150x  = fmt.Sprintf("%v150x150/", pathImageBase)
-	images400x  = fmt.Sprintf("%v400x400/", pathImageBase)
-	imagesDesc  = fmt.Sprintf("%vdescription/", pathImageBase)
-	imagesInfo  = fmt.Sprintf("%vinformation/", pathImageBase)
-	imagesPrev  = fmt.Sprintf("%vpreview/", pathImageBase)
-	imagesCapt  = fmt.Sprintf("%vscreencapture/", pathImageBase)
-	filesJSON   = fmt.Sprintf("%vjson/", pathFilesBase)
-	filesEmu    = fmt.Sprintf("%vemularity/", pathFilesBase)
-	filesEmuZip = fmt.Sprintf("%vemularity.zip/", pathFilesBase)
-	filesXMLOrg = fmt.Sprintf("%vxml/organisation/", pathFilesBase) // TODO
+	pathBackup    = fmt.Sprintf("%vbackups/", pathFilesBase)
+	images150x    = fmt.Sprintf("%v150x150/", pathImageBase)
+	images400x    = fmt.Sprintf("%v400x400/", pathImageBase)
+	imagesDesc    = fmt.Sprintf("%vdescription/", pathImageBase)
+	imagesInfo    = fmt.Sprintf("%vinformation/", pathImageBase)
+	imagesPrev    = fmt.Sprintf("%vpreview/", pathImageBase)
+	imagesCapt    = fmt.Sprintf("%vscreencapture/", pathImageBase)
+	filesJSON     = fmt.Sprintf("%vjson/", pathFilesBase)
+	filesEmu      = fmt.Sprintf("%vemularity/", pathFilesBase)
+	filesEmuZip   = fmt.Sprintf("%vemularity.zip/", pathFilesBase)
+	filesXMLOrg   = fmt.Sprintf("%vxml/organisation/", pathFilesBase) // TODO
 )
 
 // Empty is used as a blank value for search maps.
@@ -75,7 +76,7 @@ Options:
   
   --delete         Archive then delete all found orphaned files.
   --output=FORMAT  Output format (text|none) [Default: text]
-  --raw            Unhumanize time and size details.`
+  --raw            Dehumanize time and size details.`
 
 	// parse CLI arguments to determine which directories to scan
 	arguments, _ := docopt.Parse(usage, nil, true, version, false)
@@ -322,16 +323,25 @@ func scanPath(path string, output string, delete bool, rawData bool, m map[strin
 	return cnt, fails, ts // number of orphaned files discovered, deletion failures, their cumulative size in bytes
 }
 
+// ReadPassword attempts to read and return the Defacto2 database user password when stored in a local text file.
+func readPassword() string {
+	// fetch database password
+	pwFile, err := os.Open(pwPath)
+	// return an empty password if path fails
+	if err != nil {
+		log.Print("WARNING:", err)
+		return dbPass
+	}
+	defer pwFile.Close()
+	pw, err := ioutil.ReadAll(pwFile)
+	checkErr(err)
+	return strings.TrimSpace(fmt.Sprintf("%s", pw))
+}
+
 // CreateUUIDMap builds a map of all the unique UUID values stored in the Defacto2 database.
 func createUUIDMap() (int, map[string]struct{}) {
 	// fetch database password
-	pwFile, err := os.Open(pwPath)
-	checkErr(err)
-	defer pwFile.Close()
-
-	pw, err := ioutil.ReadAll(pwFile)
-	checkErr(err)
-	password := strings.TrimSpace(fmt.Sprintf("%s", pw))
+	password := readPassword()
 
 	// connect to the database
 	db, err := sql.Open("mysql", fmt.Sprintf("%v:%v@%v/%v", dbUser, password, dbServer, dbName))
