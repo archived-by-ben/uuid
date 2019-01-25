@@ -37,9 +37,9 @@ var (
 	dbUser        string // Database username for login
 	dbPass        string // Database username password for login [SHOULD BE LEFT BLANK]
 	pwPath        string // The path to a secured text file containing the dbUser login password
-	pathUUID      string
-	pathImageBase string
-	pathFilesBase string
+	pathUUID      string // Path to file downloads named as UUID
+	pathImageBase string // Path to image previews and thumbnails
+	pathFilesBase string // Path to webapp generated files such as JSON/XML
 	pathBackup    = fmt.Sprintf("%vbackups/", pathFilesBase)
 	images150x    = fmt.Sprintf("%v150x150/", pathImageBase)
 	images400x    = fmt.Sprintf("%v400x400/", pathImageBase)
