@@ -45,17 +45,21 @@ PATH_FILES=/opt/webapp/files/
 
 Now you can run and tryout the package.
 ```sh
-./build.sh --version; ./build.sh -h
+./build.sh run --version; ./build.sh run -h
 ```
 
 Install the package.
 ```sh
 ./build.sh install
+uuid --version
+uuid -h
 ```
 
-Build the package.
+Build the package (may require dependencies).
 ```sh
 ./build.sh
+./uuid --version
+./uuid -h
 ```
 
 Install dependencies.
