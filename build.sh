@@ -9,7 +9,7 @@ DB_USER=root
 # Path to a text file containing the database login user password
 PW_PATH=/path/to/password
 # Database login fallback password when text file is not found [should normally be left blank]
-DB_PASS=password
+DB_PASS=
 #
 # Build time variables to local directories
 #
@@ -20,20 +20,18 @@ PATH_IMAGE=/opt/webapp/images/
 # Path to webapp generated files such as JSON/XML
 PATH_FILES=/opt/webapp/files/
 
-# Make build the default Go command
-if [ $# -eq 0 ]; then
-	CMD=build
-else
-	CMD=$1
-fi
-
 # Handle any additional supplied arguments
-if [[ $CMD == "build" || $CMD == "install" ]]; then
+if [[ $1 == "build" || $1 == "install" ]]; then
+    CMD=$1
 	shift 1
 	ARGS="$@ uuid.go"
-elif [ $CMD == "run" ]; then
+elif [[ $1 == "run" ]]; then
+    CMD=$1
 	shift 1
 	ARGS="uuid.go $@"
+else
+	CMD=build
+	ARGS="$@ uuid.go"
 fi
 
 go $CMD -ldflags "\
