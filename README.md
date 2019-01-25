@@ -6,22 +6,22 @@ _Defacto2 manager of UUID named files_
 
 [Created in Go](https://golang.org/doc/install), to build from source.
 
-Clone this repo.
+Clone this repository.
 
 ```
 cd go/src
 git clone https://github.com/Defacto2/uuid.git
 ```
 
-Install dependancies.
+Install dependencies.
 
-```
+```sh
 go get github.com/docopt/docopt-go
 go get github.com/dustin/go-humanize
 go get github.com/go-sql-driver/mysql
 ```
 
-```
+```sh
 cd uuid
 go build
 ```
