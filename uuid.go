@@ -28,7 +28,7 @@ import (
 )
 
 const (
-	version  string = "Defacto2 UUID Tool 1.1.0" // Application title and version
+	version  string = "Defacto2 UUID Tool 1.2.0" // Application title and version
 	dbServer string = "tcp(localhost:3306)"      // Database server connection, protocol (IP or domain address:port number)
 )
 
@@ -43,10 +43,7 @@ var (
 	pathBackup    = fmt.Sprintf("%vbackups/", pathFilesBase)
 	images150x    = fmt.Sprintf("%v150x150/", pathImageBase)
 	images400x    = fmt.Sprintf("%v400x400/", pathImageBase)
-	imagesDesc    = fmt.Sprintf("%vdescription/", pathImageBase)
-	imagesInfo    = fmt.Sprintf("%vinformation/", pathImageBase)
-	imagesPrev    = fmt.Sprintf("%vpreview/", pathImageBase)
-	imagesCapt    = fmt.Sprintf("%vscreencapture/", pathImageBase)
+	imagesCapt    = fmt.Sprintf("%voriginal/", pathImageBase)
 	filesJSON     = fmt.Sprintf("%vjson/", pathFilesBase)
 	filesEmu      = fmt.Sprintf("%vemularity/", pathFilesBase)
 	filesEmuZip   = fmt.Sprintf("%vemularity.zip/", pathFilesBase)
@@ -65,7 +62,7 @@ Usage:
   uuid all [options]
   uuid downloads [options]
   uuid emulation [text|zip] [options]
-  uuid images [150 400 capt desc info prev] [options]
+  uuid images [150 400 capt] [options]
   uuid json [options]
   uuid -h | --help
   uuid --version
@@ -73,7 +70,7 @@ Usage:
 Options:
   -h --help        Show this screen.
   --version        Show version.
-  
+
   --delete         Archive then delete all found orphaned files.
   --output=FORMAT  Output format (text|none) [Default: text]
   --raw            Dehumanize time and size details.`
@@ -95,9 +92,8 @@ Options:
 	}
 	if arguments["images"] == true || arguments["all"] == true {
 		if arguments["all"] == true || (arguments["150"] == false && arguments["400"] == false &&
-			arguments["capt"] == false && arguments["desc"] == false && arguments["info"] == false &&
-			arguments["prev"] == false) {
-			paths = append(paths, images150x, images400x, imagesCapt, imagesDesc, imagesInfo, imagesPrev)
+			arguments["capt"] == false) {
+			paths = append(paths, images150x, images400x, imagesCapt)
 		} else {
 			if arguments["150"] == true {
 				paths = append(paths, images150x)
@@ -107,15 +103,6 @@ Options:
 			}
 			if arguments["capt"] == true {
 				paths = append(paths, imagesCapt)
-			}
-			if arguments["desc"] == true {
-				paths = append(paths, imagesDesc)
-			}
-			if arguments["info"] == true {
-				paths = append(paths, imagesInfo)
-			}
-			if arguments["prev"] == true {
-				paths = append(paths, imagesPrev)
 			}
 		}
 	}
@@ -218,9 +205,6 @@ func scanPath(path string, output string, delete bool, rawData bool, m map[strin
 		tn[images150x] = "img-150xthumbs"
 		tn[images400x] = "img-400xthumbs"
 		tn[imagesCapt] = "img-captures"
-		tn[imagesDesc] = "img-desc"
-		tn[imagesInfo] = "img-info"
-		tn[imagesPrev] = "img-prev"
 		if _, ok := tn[path]; ok == true {
 			t := time.Now()
 			dest := fmt.Sprintf("%vbak-%v-%v-%v-%v-%v%v%v.tar", pathBackup, tn[path], t.Year(), t.Month(), t.Day(), t.Hour(), t.Minute(), t.Second())
