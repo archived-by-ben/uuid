@@ -28,7 +28,7 @@ import (
 )
 
 const (
-	version  string = "Defacto2 UUID Tool 1.2.0" // Application title and version
+	version  string = "Defacto2 UUID Tool 1.2.5" // Application title and version
 	dbServer string = "tcp(localhost:3306)"      // Database server connection, protocol (IP or domain address:port number)
 )
 
@@ -68,12 +68,11 @@ Usage:
   uuid --version
 
 Options:
-  -h --help        Show this screen.
-  --version        Show version.
-
   --delete         Archive then delete all found orphaned files.
   --output=FORMAT  Output format (text|none) [Default: text]
-  --raw            Dehumanize time and size details.`
+  --raw            Dehumanize time and size details.
+  -h --help        Show this screen.
+  --version        Show version.`
 
 	// parse CLI arguments to determine which directories to scan
 	arguments, _ := docopt.Parse(usage, nil, true, version, false)
@@ -110,13 +109,13 @@ Options:
 		paths = append(paths, filesJSON)
 	}
 	// CLI options
-	var delete = arguments["--delete"].(bool) // Type assertions
-	var output = arguments["--output"].(string)
-	var rawData = arguments["--raw"].(bool)
+	delete, false := arguments["--delete"].(bool) // Type assertions
+	rawData, false := arguments["--raw"].(bool)
+	output, outArg := arguments["--output"].(string)
 
 	// connect to the database
 	rows, m := createUUIDMap()
-	if output != "none" {
+	if outArg && output != "none" {
 		fmt.Printf("\nThe following files do not match any UUIDs in the database\n")
 	}
 	// parse directories
