@@ -20,7 +20,7 @@ import (
 	"sort"
 	"strings"
 
-	data "github.com/Defacto2/uuid/v2/lib"
+	"github.com/Defacto2/uuid/v2/lib/assets"
 	"github.com/spf13/cobra"
 )
 
@@ -40,8 +40,8 @@ var cleanCmd = &cobra.Command{
 
 		// println("count", len(m))
 
-		data.Init()
-		data.Clean()
+		assets.Init()
+		assets.Clean()
 	},
 }
 

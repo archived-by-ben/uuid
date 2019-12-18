@@ -1,8 +1,7 @@
-package data
+package assets
 
 import (
 	"archive/tar"
-	"database/sql"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -12,22 +11,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Defacto2/uuid/v2/lib/database"
+
 	// MySQL database driver
 	"github.com/dustin/go-humanize"
 	// MySQL database driver
 	_ "github.com/go-sql-driver/mysql"
 )
 
-// Empty is used as a blank value for search maps.
-// See: https://dave.cheney.net/2014/03/25/the-empty-struct
-type empty struct{}
-
-type db struct {
-	name   string // database name
-	user   string // access username
-	pass   string // access password
-	server string // server address
-}
+var empty = database.Empty{}
 
 // Dir is a collection of paths containing files
 type Dir struct {
@@ -43,10 +35,8 @@ type Dir struct {
 }
 
 var (
-	d      = db{name: "defacto2-inno", user: "root", pass: "password", server: "tcp(localhost:3306)"}
-	p      = Dir{root: "/Users/ben/Defacto2/", uuid: "uuid/", image: "images/", file: "files/"}
-	paths  []string
-	pwPath string // The path to a secured text file containing the dbUser login password
+	p     = Dir{root: "/Users/ben/Defacto2/", uuid: "uuid/", image: "images/", file: "files/"}
+	paths []string
 )
 
 // Init xx
@@ -99,7 +89,7 @@ func Clean() {
 	fmt.Printf("\npath: %v\np: %v\n", paths, p.uuid)
 
 	// connect to the database
-	rows, m := CreateUUIDMap()
+	rows, m := database.CreateUUIDMap()
 	if outArg && output != "none" {
 		fmt.Printf("\nThe following files do not match any UUIDs in the database\n")
 	}
@@ -148,7 +138,7 @@ type scan struct {
 	output  string
 	delete  bool
 	rawData bool
-	m       files
+	m       database.IDs
 }
 
 type files map[string]struct{}
@@ -157,14 +147,14 @@ var ignore files
 
 func ignoreList(path string) files {
 	i := make(map[string]struct{})
-	i["00000000-0000-0000-0000-000000000000"] = empty{}
-	i["blank.png"] = empty{}
+	i["00000000-0000-0000-0000-000000000000"] = empty
+	i["blank.png"] = empty
 	if path == p.emu {
-		i["g_drive.zip"] = empty{}
-		i["s_drive.zip"] = empty{}
-		i["u_drive.zip"] = empty{}
-		i["dosee-core.js"] = empty{}
-		i["dosee-core.mem"] = empty{}
+		i["g_drive.zip"] = empty
+		i["s_drive.zip"] = empty
+		i["u_drive.zip"] = empty
+		i["dosee-core.js"] = empty
+		i["dosee-core.mem"] = empty
 	}
 	return i
 }
@@ -183,7 +173,7 @@ func backup(s *scan, list []os.FileInfo) {
 		// search the map `m` for `UUID`, the result is saved as a boolean to `exists`
 		_, exists := s.m[id]
 		if !exists {
-			archive[file.Name()] = empty{}
+			archive[file.Name()] = empty
 		}
 	}
 	// identify which files should be backed up
@@ -248,9 +238,9 @@ func delete(s *scan, list []os.FileInfo) results {
 			continue // ignore files
 		}
 		base := file.Name()
-		UUID := strings.TrimSuffix(base, filepath.Ext(base))
+		uuid := strings.TrimSuffix(base, filepath.Ext(base))
 		// search the map `m` for `UUID`, the result is saved as a boolean to `exists`
-		_, exists := s.m[UUID]
+		_, exists := s.m[uuid]
 		if !exists {
 			r.count++
 			r.bytes += file.Size()
@@ -312,49 +302,6 @@ func scanPath(s scan) (results, error) {
 		fmt.Printf("\n%v orphaned files\n%v drive space consumed\n", r.count, dsc)
 	}
 	return r, nil // number of orphaned files discovered, deletion failures, their cumulative size in bytes
-}
-
-// CreateUUIDMap builds a map of all the unique UUID values stored in the Defacto2 database.
-func CreateUUIDMap() (int, map[string]struct{}) {
-	// fetch database password
-	password := readPassword()
-
-	// connect to the database
-	db, err := sql.Open("mysql", fmt.Sprintf("%v:%v@%v/%v", d.user, password, d.server, d.name))
-	checkErr(err)
-	defer db.Close()
-
-	// query database
-	var id, uuid string
-	rows, err := db.Query("SELECT `id`,`uuid` FROM `files`")
-	checkErr(err)
-
-	m := make(map[string]struct{}) // this map is to store all the UUID values used in the database
-
-	// handle query results
-	rc := 0 // row count
-	for rows.Next() {
-		err = rows.Scan(&id, &uuid)
-		checkErr(err)
-		m[uuid] = empty{} // store record `uuid` value as a key name in the map `m` with an empty value
-		rc++
-	}
-	return rc, m
-}
-
-// ReadPassword attempts to read and return the Defacto2 database user password when stored in a local text file.
-func readPassword() string {
-	// fetch database password
-	pwFile, err := os.Open(pwPath)
-	// return an empty password if path fails
-	if err != nil {
-		//log.Print("WARNING: ", err)
-		return d.pass
-	}
-	defer pwFile.Close()
-	pw, err := ioutil.ReadAll(pwFile)
-	checkErr(err)
-	return strings.TrimSpace(fmt.Sprintf("%s", pw))
 }
 
 // CheckErr logs any errors
