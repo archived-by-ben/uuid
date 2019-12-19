@@ -6,6 +6,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,81 +14,111 @@ import (
 
 	"github.com/Defacto2/uuid/v2/lib/database"
 
-	// MySQL database driver
 	"github.com/dustin/go-humanize"
 	// MySQL database driver
 	_ "github.com/go-sql-driver/mysql"
 )
 
-var empty = database.Empty{}
+const random = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0987654321 .!?"
 
 // Dir is a collection of paths containing files
 type Dir struct {
-	root   string
-	uuid   string // path to file downloads named as UUID
+	base   string // base directory path that hosts these other subdirectories
+	uuid   string // path to file downloads with UUID as filenames
 	image  string // path to image previews and thumbnails
 	file   string // path to webapp generated files such as JSON/XML
-	emu    string
-	backup string
-	img150 string
-	img400 string
-	img000 string
+	emu    string // path to the dosee emulation files
+	backup string // path to the backup archives or previously removed files
+	img150 string // path to 150x150 squared thumbnails
+	img400 string // path to 400x400 squared thumbnails
+	img000 string // path to screencaptures and previews
+}
+
+// files are unique UUID values used by the database and filenames
+type files map[string]struct{}
+
+type results struct {
+	count int   // results handled
+	fails int   // results that failed
+	bytes int64 // bytes counted
+}
+
+type scan struct {
+	path    string       // directory to scan
+	output  string       // print output
+	delete  bool         // delete any detected orphan files
+	rawData bool         // do not humanize values shown by print output
+	m       database.IDs // UUID values fetched from the database
 }
 
 var (
-	p     = Dir{root: "/Users/ben/Defacto2/", uuid: "uuid/", image: "images/", file: "files/"}
-	paths []string
+	empty  = database.Empty{}
+	ignore files
+	p      = Dir{base: "/Users/ben/Defacto2/", uuid: "uuid/", image: "images/", file: "files/"}
+	paths  []string // a collection of directories
 )
 
-// Init xx
+// Init initializes the subdirectories and UUID structure
 func Init() {
-	p.emu = p.root + p.file + "emularity.zip/"
-	p.backup = p.root + p.file + "backups/"
-	p.img000 = p.root + p.image + "000x/"
-	p.img400 = p.root + p.image + "400x/"
-	p.img150 = p.root + p.image + "150x/"
-	p.uuid = p.root + p.uuid
-	//
-	createDirectory(p.root)
-	createDirectory(p.uuid)
-	createDirectory(p.emu)
-	createDirectory(p.backup)
-	createDirectory(p.img000)
-	createDirectory(p.img400)
-	createDirectory(p.img150)
+	p.emu = p.base + p.file + "emularity.zip/"
+	p.backup = p.base + p.file + "backups/"
+	p.img000 = p.base + p.image + "000x/"
+	p.img400 = p.base + p.image + "400x/"
+	p.img150 = p.base + p.image + "150x/"
+	p.uuid = p.base + p.uuid
+	createPlaceHolders()
 }
 
-func createDirectory(dirName string) bool {
-	src, err := os.Stat(dirName)
-
-	if os.IsNotExist(err) {
-		errDir := os.MkdirAll(dirName, 0755)
-		if errDir != nil {
-			panic(err)
+// AddTarFile saves the result of a fileWalk file into a TAR archive at path as the source file name.
+// Source: cloudfoundry/archiver (https://github.com/cloudfoundry/archiver/blob/master/compressor/write_tar.go)
+func AddTarFile(path, name string, tw *tar.Writer) error {
+	fi, err := os.Lstat(path)
+	if err != nil {
+		return err
+	}
+	var link string
+	if fi.Mode()&os.ModeSymlink != 0 {
+		if link, err = os.Readlink(path); err != nil {
+			return err
 		}
-		return true
 	}
-
-	if src.Mode().IsRegular() {
-		fmt.Println(dirName, "already exist as a file!")
-		return false
+	hdr, err := tar.FileInfoHeader(fi, link)
+	if err != nil {
+		return err
 	}
-
-	return false
+	if fi.IsDir() && !os.IsPathSeparator(name[len(name)-1]) {
+		name = name + "/"
+	}
+	if hdr.Typeflag == tar.TypeReg && name == "." {
+		// archiving a single file
+		hdr.Name = filepath.ToSlash(filepath.Base(path))
+	} else {
+		hdr.Name = filepath.ToSlash(name)
+	}
+	if err := tw.WriteHeader(hdr); err != nil {
+		return err
+	}
+	if hdr.Typeflag == tar.TypeReg {
+		file, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		defer file.Close()
+		if _, err = io.Copy(tw, file); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
-// Clean xxx
+// Clean walks through and scans directories containing UUID files and erases any orphans that cannot be matched to the database
 func Clean() {
 	output := ""
 	outArg := false
 	delete := false
 	rawData := false
-
-	// paths
+	// paths TODO: parse arguments
 	paths = append(paths, p.uuid, p.emu, p.backup, p.img000, p.img400, p.img150)
-
-	fmt.Printf("\npath: %v\np: %v\n", paths, p.uuid)
-
 	// connect to the database
 	rows, m := database.CreateUUIDMap()
 	if outArg && output != "none" {
@@ -127,38 +158,7 @@ func Clean() {
 	}
 }
 
-type results struct {
-	count int
-	fails int
-	bytes int64
-}
-
-type scan struct {
-	path    string
-	output  string
-	delete  bool
-	rawData bool
-	m       database.IDs
-}
-
-type files map[string]struct{}
-
-var ignore files
-
-func ignoreList(path string) files {
-	i := make(map[string]struct{})
-	i["00000000-0000-0000-0000-000000000000"] = empty
-	i["blank.png"] = empty
-	if path == p.emu {
-		i["g_drive.zip"] = empty
-		i["s_drive.zip"] = empty
-		i["u_drive.zip"] = empty
-		i["dosee-core.js"] = empty
-		i["dosee-core.mem"] = empty
-	}
-	return i
-}
-
+// backup is used by scanPath to backup matched orphans
 func backup(s *scan, list []os.FileInfo) {
 	var archive files
 	for _, file := range list {
@@ -213,7 +213,7 @@ func backup(s *scan, list []os.FileInfo) {
 				if c == 1 && s.output != "none" {
 					fmt.Printf("Archiving these files before deletion\n\n")
 				}
-				return addTarFile(path, name, tw)
+				return AddTarFile(path, name, tw)
 			}
 			return nil // no match
 		})
@@ -228,6 +228,72 @@ func backup(s *scan, list []os.FileInfo) {
 	}
 }
 
+// createPlaceHolders generates a collection placeholder files in the UUID subdirectories
+func createPlaceHolders() {
+	createHolderFiles(p.uuid, 1000000, 9)
+	createHolderFiles(p.emu, 1000000, 2)
+	createHolderFiles(p.img000, 1000000, 9)
+	createHolderFiles(p.img400, 500000, 9)
+	createHolderFiles(p.img150, 100000, 9)
+}
+
+// createDirectories generates a series of UUID subdirectories
+func createDirectories() {
+	createDirectory(p.base)
+	createDirectory(p.uuid)
+	createDirectory(p.emu)
+	createDirectory(p.backup)
+	createDirectory(p.img000)
+	createDirectory(p.img400)
+	createDirectory(p.img150)
+}
+
+// createDirectory creates a UUID subdirectory provided to path
+func createDirectory(path string) bool {
+	src, err := os.Stat(path)
+	if os.IsNotExist(err) {
+		if err := os.MkdirAll(path, 0755); err != nil {
+			panic(err)
+		}
+		return true
+	}
+	if src.Mode().IsRegular() {
+		fmt.Println(path, "already exist as a file!")
+		return false
+	}
+	return false
+}
+
+// createHolderFiles generates a number of placeholder files in the given directory
+func createHolderFiles(dir string, size int, number uint) {
+	if number > 9 {
+		log.Fatalf("Invalid prefix %v, %v", number, fmt.Errorf("it must be between 0 and 9"))
+	}
+	var i uint
+	for i = 0; i <= number; i++ {
+		createHolderFile(dir, size, i)
+	}
+}
+
+// createHolderFile generates a placeholder file filled with random text in the given directory,
+// the size of the file determines the number of random characters and the prefix is a digit between
+// 0 and 9 is appended to the filename
+func createHolderFile(dir string, size int, prefix uint) {
+	if prefix > 9 {
+		log.Fatalf("Invalid prefix %v, %v", prefix, fmt.Errorf("it must be between 0 and 9"))
+	}
+	name := fmt.Sprintf("00000000-0000-0000-0000-00000000000%v", prefix)
+	if _, err := os.Stat(dir + name); err == nil {
+		return // don't overwrite existing files
+	}
+	rand.Seed(time.Now().UnixNano())
+	text := []byte(randStringBytes(size))
+	if err := ioutil.WriteFile(dir+name, text, 0644); err != nil {
+		log.Fatal("Failed to write file", err)
+	}
+}
+
+// delete is used by scanPath to remove matched orphans
 func delete(s *scan, list []os.FileInfo) results {
 	var r = results{count: 0, fails: 0, bytes: 0}
 	for _, file := range list {
@@ -274,7 +340,31 @@ func delete(s *scan, list []os.FileInfo) results {
 	return r
 }
 
-// ScanPath gets a list of filenames located in `path` and matches the results against the list generated by createUUIDMap.
+// ignoreList is used by scanPath to filter files that should not be erased
+func ignoreList(path string) files {
+	i := make(map[string]struct{})
+	i["00000000-0000-0000-0000-000000000000"] = empty
+	i["blank.png"] = empty
+	if path == p.emu {
+		i["g_drive.zip"] = empty
+		i["s_drive.zip"] = empty
+		i["u_drive.zip"] = empty
+		i["dosee-core.js"] = empty
+		i["dosee-core.mem"] = empty
+	}
+	return i
+}
+
+// randStringBytes generates a random string of n x characters
+func randStringBytes(n int) string {
+	b := make([]byte, n)
+	for i := range b {
+		b[i] = random[rand.Int63()%int64(len(random))]
+	}
+	return string(b)
+}
+
+// scanPath gets a list of filenames located in s.path and matches the results against the list generated by CreateUUIDMap
 func scanPath(s scan) (results, error) {
 	if s.output != "none" {
 		fmt.Printf("\nResults from %v\n\n", s.path)
@@ -304,61 +394,9 @@ func scanPath(s scan) (results, error) {
 	return r, nil // number of orphaned files discovered, deletion failures, their cumulative size in bytes
 }
 
-// CheckErr logs any errors
+// checkErr logs any errors
 func checkErr(err error) {
 	if err != nil {
 		log.Fatal("ERROR: ", err)
 	}
-}
-
-// Source: cloudfoundry/archiver
-// https://github.com/cloudfoundry/archiver/blob/master/compressor/write_tar.go
-func addTarFile(path, name string, tw *tar.Writer) error {
-	fi, err := os.Lstat(path)
-	if err != nil {
-		return err
-	}
-
-	link := ""
-	if fi.Mode()&os.ModeSymlink != 0 {
-		if link, err = os.Readlink(path); err != nil {
-			return err
-		}
-	}
-
-	hdr, err := tar.FileInfoHeader(fi, link)
-	if err != nil {
-		return err
-	}
-
-	if fi.IsDir() && !os.IsPathSeparator(name[len(name)-1]) {
-		name = name + "/"
-	}
-
-	if hdr.Typeflag == tar.TypeReg && name == "." {
-		// archiving a single file
-		hdr.Name = filepath.ToSlash(filepath.Base(path))
-	} else {
-		hdr.Name = filepath.ToSlash(name)
-	}
-
-	if err := tw.WriteHeader(hdr); err != nil {
-		return err
-	}
-
-	if hdr.Typeflag == tar.TypeReg {
-		file, err := os.Open(path)
-		if err != nil {
-			return err
-		}
-
-		defer file.Close()
-
-		_, err = io.Copy(tw, file)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
 }

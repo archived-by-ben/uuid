@@ -24,7 +24,7 @@ type Connection struct {
 // See: https://dave.cheney.net/2014/03/25/the-empty-struct
 type Empty struct{}
 
-// IDs are unique UUID values used by the database and filenames.
+// IDs are unique UUID values used by the database and filenames
 type IDs map[string]struct{}
 
 var (
@@ -32,7 +32,7 @@ var (
 	pwPath string // The path to a secured text file containing the d.User login password
 )
 
-// CreateUUIDMap builds a map of all the unique UUID values stored in the Defacto2 database.
+// CreateUUIDMap builds a map of all the unique UUID values stored in the Defacto2 database
 func CreateUUIDMap() (int, IDs) {
 	pw := readPassword()
 
@@ -66,7 +66,7 @@ func checkErr(err error) {
 	}
 }
 
-// readPassword attempts to read and return the Defacto2 database user password when stored in a local text file.
+// readPassword attempts to read and return the Defacto2 database user password when stored in a local text file
 func readPassword() string {
 	// fetch database password
 	pwFile, err := os.Open(pwPath)
