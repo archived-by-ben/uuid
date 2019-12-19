@@ -1,22 +1,6 @@
-/*
-Copyright © 2019 NAME HERE <EMAIL ADDRESS>
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
 package cmd
 
 import (
-	"fmt"
 	"sort"
 	"strings"
 
@@ -27,32 +11,34 @@ import (
 // cleanCmd represents the clean command
 var cleanCmd = &cobra.Command{
 	Use:   "clean",
-	Short: "Discover or clean orphan UUID named files",
+	Short: "Discover or clean orphan files",
 	Long:  ``,
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("clean called")
-		// println(valid(targets, target))
-		// _, m := data.CreateUUIDMap()
-
-		// for k, v := range m {
-		// 	fmt.Printf("key[%s] value[%s]\n", k, v)
-		// }
-
-		// println("count", len(m))
-
-		assets.Init()
-		assets.Clean()
+		assets.Init(makeDirs)
+		assets.Clean(delete, humanize, result, target)
 	},
 }
 
 var (
 	delete   bool
 	humanize bool
+	makeDirs bool
 	result   string
-	results  []string = []string{"text", "json", "quiet"}
+	results  []string = []string{"text", "quiet"}
 	target   string
 	targets  []string = []string{"all", "download", "emulation", "image"}
 )
+
+func init() {
+	rootCmd.AddCommand(cleanCmd)
+	cleanCmd.Flags().StringVarP(&target, "target", "t", "all", "what file section to clean"+options(targets))
+	cleanCmd.Flags().StringVarP(&result, "result", "r", "text", "print format for the results of clean"+options(results))
+	cleanCmd.Flags().BoolVarP(&delete, "delete", "d", false, "erase all discovered files to free up drive space")
+	cleanCmd.Flags().BoolVar(&humanize, "humanize", true, "humanize file sizes and date times")
+	cleanCmd.Flags().BoolVar(&makeDirs, "makedirs", false, "generate uuid directories and placeholder files")
+	cleanCmd.Flags().SortFlags = false
+	_ = cleanCmd.Flags().MarkHidden("makedirs")
+}
 
 func options(a []string) string {
 	sort.Strings(a)
@@ -66,12 +52,4 @@ func valid(a []string, x string) bool {
 		}
 	}
 	return false
-}
-
-func init() {
-	rootCmd.AddCommand(cleanCmd)
-	cleanCmd.Flags().BoolVarP(&delete, "delete", "d", false, "erase all discovered files to free up drive space")
-	cleanCmd.Flags().BoolVar(&humanize, "humanize", true, "humanize file sizes and date times")
-	cleanCmd.Flags().StringVarP(&result, "result", "r", "text", "print format for the results of clean"+options(results))
-	cleanCmd.Flags().StringVarP(&target, "target", "t", "all", "what file section to clean"+options(targets))
 }

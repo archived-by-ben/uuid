@@ -1,5 +1,7 @@
 package assets
 
+// todo: format tables with go tab writer; add colour text
+
 import (
 	"archive/tar"
 	"fmt"
@@ -27,7 +29,7 @@ type Dir struct {
 	uuid   string // path to file downloads with UUID as filenames
 	image  string // path to image previews and thumbnails
 	file   string // path to webapp generated files such as JSON/XML
-	emu    string // path to the dosee emulation files
+	emu    string // path to the DOSee emulation files
 	backup string // path to the backup archives or previously removed files
 	img150 string // path to 150x150 squared thumbnails
 	img400 string // path to 400x400 squared thumbnails
@@ -44,11 +46,11 @@ type results struct {
 }
 
 type scan struct {
-	path    string       // directory to scan
-	output  string       // print output
-	delete  bool         // delete any detected orphan files
-	rawData bool         // do not humanize values shown by print output
-	m       database.IDs // UUID values fetched from the database
+	path     string       // directory to scan
+	output   string       // print output
+	delete   bool         // delete any detected orphan files
+	friendly bool         // humanize values shown by print output
+	m        database.IDs // UUID values fetched from the database
 }
 
 var (
@@ -59,14 +61,17 @@ var (
 )
 
 // Init initializes the subdirectories and UUID structure
-func Init() {
+func Init(create bool) Dir {
 	p.emu = p.base + p.file + "emularity.zip/"
 	p.backup = p.base + p.file + "backups/"
 	p.img000 = p.base + p.image + "000x/"
 	p.img400 = p.base + p.image + "400x/"
 	p.img150 = p.base + p.image + "150x/"
 	p.uuid = p.base + p.uuid
-	createPlaceHolders()
+	if create {
+		createPlaceHolders()
+	}
+	return p
 }
 
 // AddTarFile saves the result of a fileWalk file into a TAR archive at path as the source file name.
@@ -112,28 +117,33 @@ func AddTarFile(path, name string, tw *tar.Writer) error {
 }
 
 // Clean walks through and scans directories containing UUID files and erases any orphans that cannot be matched to the database
-func Clean() {
-	output := ""
-	outArg := false
-	delete := false
-	rawData := false
-	// paths TODO: parse arguments
-	paths = append(paths, p.uuid, p.emu, p.backup, p.img000, p.img400, p.img150)
+func Clean(delete bool, friendly bool, result string, target string) {
+	output := result
+	switch target {
+	case "all":
+		paths = append(paths, p.uuid, p.emu, p.backup, p.img000, p.img400, p.img150)
+	case "download":
+		paths = append(paths, p.uuid, p.backup)
+	case "emulation":
+		paths = append(paths, p.emu)
+	case "image":
+		paths = append(paths, p.img000, p.img400, p.img150)
+	}
 	// connect to the database
 	rows, m := database.CreateUUIDMap()
-	if outArg && output != "none" {
+	if console(output) {
 		fmt.Printf("\nThe following files do not match any UUIDs in the database\n")
 	}
 	// parse directories
 	var sum results
 	for p := range paths {
-		s := scan{path: paths[p], output: output, delete: delete, rawData: rawData, m: m}
+		s := scan{path: paths[p], output: output, delete: delete, friendly: friendly, m: m}
 		r, err := scanPath(s)
 		if err != nil {
-			if s.output == "none" {
-				log.Printf("ERROR:%v\n", err)
-			} else {
+			if console(s.output) {
 				fmt.Printf("Error: %v\n", err)
+			} else {
+				log.Printf("ERROR:%v\n", err)
 			}
 		}
 		sum.bytes += r.bytes
@@ -141,14 +151,14 @@ func Clean() {
 		sum.fails += r.fails
 	}
 	// output a summary of the results
-	if output != "none" {
+	if console(output) {
 		fmt.Printf("\nTotal orphaned files discovered %v out of %v\n", humanize.Comma(int64(sum.count)), humanize.Comma(int64(rows)))
 		if sum.fails > 0 {
 			fmt.Printf("Due to errors, %v files could not be deleted\n", sum.fails)
 		}
 		if len(paths) > 1 {
 			var pts string
-			if !rawData {
+			if friendly {
 				pts = humanize.Bytes(uint64(sum.bytes))
 			} else {
 				pts = fmt.Sprintf("%v B", sum.bytes)
@@ -160,7 +170,7 @@ func Clean() {
 
 // backup is used by scanPath to backup matched orphans
 func backup(s *scan, list []os.FileInfo) {
-	var archive files
+	archive := make(map[string]struct{})
 	for _, file := range list {
 		if file.IsDir() {
 			continue // ignore directories
@@ -173,7 +183,7 @@ func backup(s *scan, list []os.FileInfo) {
 		// search the map `m` for `UUID`, the result is saved as a boolean to `exists`
 		_, exists := s.m[id]
 		if !exists {
-			archive[file.Name()] = empty
+			archive[fn] = empty
 		}
 	}
 	// identify which files should be backed up
@@ -210,7 +220,7 @@ func backup(s *scan, list []os.FileInfo) {
 			}
 			if _, ok := archive[name]; ok {
 				c++
-				if c == 1 && s.output != "none" {
+				if c == 1 && console(s.output) {
 					fmt.Printf("Archiving these files before deletion\n\n")
 				}
 				return AddTarFile(path, name, tw)
@@ -225,6 +235,16 @@ func backup(s *scan, list []os.FileInfo) {
 			checkErr(err)
 			checkErr(rm)
 		}
+	}
+}
+
+// console parses output flag to decide if to print to stdout
+func console(flag string) bool {
+	switch flag {
+	case "none":
+		return false
+	default:
+		return true
 	}
 }
 
@@ -316,7 +336,7 @@ func delete(s *scan, list []os.FileInfo) results {
 				fn := fmt.Sprintf("%v%v", s.path, file.Name())
 				rm := os.Remove(fn)
 				if rm != nil {
-					if s.output == "none" {
+					if console(s.output) {
 						log.Printf("ERROR:%v\n", rm)
 					} else {
 						del = fmt.Sprintf("  ✖")
@@ -324,9 +344,9 @@ func delete(s *scan, list []os.FileInfo) results {
 					}
 				}
 			}
-			if s.output != "none" {
+			if console(s.output) {
 				var fs, mt string
-				if !s.rawData {
+				if s.friendly {
 					fs = humanize.Bytes(uint64(file.Size()))
 					mt = file.ModTime().Format("2006-Jan-02 15:04:05")
 				} else {
@@ -366,7 +386,7 @@ func randStringBytes(n int) string {
 
 // scanPath gets a list of filenames located in s.path and matches the results against the list generated by CreateUUIDMap
 func scanPath(s scan) (results, error) {
-	if s.output != "none" {
+	if console(s.output) {
 		fmt.Printf("\nResults from %v\n\n", s.path)
 	}
 	// query file system
@@ -382,9 +402,9 @@ func scanPath(s scan) (results, error) {
 	}
 	// list and if requested, delete orphaned files
 	r := delete(&s, list)
-	if s.output != "none" {
+	if console(s.output) {
 		var dsc string
-		if !s.rawData {
+		if s.friendly {
 			dsc = humanize.Bytes(uint64(r.bytes))
 		} else {
 			dsc = fmt.Sprintf("%v B", r.bytes)
