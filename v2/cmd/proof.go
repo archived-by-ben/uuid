@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Defacto2/uuid/v2/lib/database"
+	"github.com/Defacto2/uuid/v2/lib/archive"
 	"github.com/spf13/cobra"
 )
 
@@ -20,14 +20,14 @@ var proofCmd = &cobra.Command{
 	Short: "Batch handler for #proof tagged files",
 	Long:  ``,
 	Run: func(cmd *cobra.Command, args []string) {
-		f := ex[0]
+		f := ex[1]
 		name := "/Users/ben/Downloads/" + f
 		fmt.Println("File: ", f)
 		//		database.CreateProof()
-		l := strings.Join(database.ReadArchive(name), ",")
+		l := strings.Join(archive.ReadArchive(name), ",")
 		fmt.Println("Contains content: ", l)
 
-		database.ExtractArchive(name)
+		archive.ExtractArchive(name)
 	},
 }
 

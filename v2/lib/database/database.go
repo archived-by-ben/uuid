@@ -3,16 +3,10 @@ package database
 import (
 	"database/sql"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"log"
 	"os"
-	"path/filepath"
 	"strings"
-
-	"github.com/disintegration/imaging"
-	"github.com/gabriel-vasile/mimetype"
-	unarr "github.com/gen2brain/go-unarr"
 
 	// MySQL database driver
 	_ "github.com/go-sql-driver/mysql"
@@ -43,80 +37,6 @@ func recordNew(values []sql.RawBytes) bool {
 		return false
 	}
 	return true
-}
-
-var archives = []string{"zip", "tar.gz", "tar", "rar", "gz", "lzh", "lha", "cab", "arj", "arc", "7z"}
-
-// ReadArchive returns a list of files within rar, tar, zip, 7z archives
-func ReadArchive(name string) []string {
-	a, err := unarr.NewArchive(name)
-	checkErr(err)
-	defer a.Close()
-	list, err := a.List()
-	checkErr(err)
-	return list
-}
-
-// ExtractArchive decompresses and parses an archive
-func ExtractArchive(name string) {
-	// create temp dir
-	tempDir, err := ioutil.TempDir("", "extarc-")
-	checkErr(err)
-	//defer os.RemoveAll(tempDir)
-	// extract archive
-	a, err := unarr.NewArchive(name)
-	checkErr(err)
-	defer a.Close()
-	a.Extract(tempDir)
-	// list temp dir
-	fmt.Println("temp: ", tempDir)
-	files, err := ioutil.ReadDir(tempDir)
-	checkErr(err)
-	for _, file := range files {
-		fmt.Println("> ", file.Name(), os.PathSeparator)
-		file := tempDir + "/" + file.Name()
-		fmime, err := mimetype.DetectFile(file)
-		checkErr(err)
-		fmt.Println(">> ", fmime)
-		switch fmime.Extension() {
-		case ".jpg":
-			// convert to PNG then resize then optimize
-			// todo run 3rd party img optimizations
-			MakeThumb(file, 400)
-			MakeThumb(file, 150)
-		case ".txt":
-			fmt.Println("NFO!")
-		default:
-			fmt.Println(fmime.Extension())
-		}
-	}
-}
-
-// MakeThumb creates a thumb from an image that is size pixel in width and height
-func MakeThumb(file string, size int) {
-	cp := CopyFile(file, "_"+fmt.Sprintf("%v", size)+"x")
-	fmt.Println("duplicated ", cp)
-	src, err := imaging.Open(cp)
-	checkErr(err)
-	src = imaging.Resize(src, size, 0, imaging.Lanczos)
-	src = imaging.CropAnchor(src, size, size, imaging.Center)
-	err = imaging.Save(src, cp)
-	checkErr(err)
-}
-
-// CopyFile duplicates a file and appends prefix to its filename
-func CopyFile(name string, prefix string) string {
-	src, err := os.Open(name)
-	checkErr(err)
-	defer src.Close()
-	ext := filepath.Ext(name)
-	fn := strings.TrimSuffix(name, ext)
-	dest, err := os.OpenFile(fn+prefix+ext, os.O_RDWR|os.O_CREATE, 0666)
-	checkErr(err)
-	defer dest.Close()
-	_, err = io.Copy(dest, src)
-	checkErr(err)
-	return fn + prefix + ext
 }
 
 // CreateProof is a placeholder to scan archives
