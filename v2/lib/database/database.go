@@ -6,10 +6,12 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
 
-	// MySQL database driver
-	_ "github.com/go-sql-driver/mysql"
+	"github.com/Defacto2/uuid/v2/lib/directories"
+
+	_ "github.com/go-sql-driver/mysql" // MySQL database driver
 )
 
 // Connection information for a MySQL database
@@ -55,12 +57,24 @@ func CreateProof() {
 	for i := range values {
 		scanArgs[i] = &values[i]
 	}
+	//
+	dir := directories.Init(false)
 	// fetch the rows
 	cnt := 0
+	missing := 0
 	for rows.Next() {
 		err = rows.Scan(scanArgs...)
 		checkErr(err)
 		if new := recordNew(values); new == false {
+			continue
+		}
+		cnt++
+		uuid := string(values[1])
+		file := filepath.Join(dir.UUID, uuid)
+		// ping file
+		if _, err := os.Stat(file); os.IsNotExist(err) {
+			println("item", cnt, "missing", file)
+			missing++
 			continue
 		}
 		// iterate through each value
@@ -83,10 +97,12 @@ func CreateProof() {
 			}
 		}
 		fmt.Println("---------------")
-		cnt++
 	}
 	checkErr(rows.Err())
-	fmt.Println("Total proofs handled, ", cnt)
+	fmt.Println("Total proofs handled: ", cnt)
+	if missing > 0 {
+		fmt.Println("UUID files not found: ", missing)
+	}
 }
 
 // CreateUUIDMap builds a map of all the unique UUID values stored in the Defacto2 database

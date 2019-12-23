@@ -20,6 +20,7 @@ import (
 	"github.com/gabriel-vasile/mimetype"
 	unarr "github.com/gen2brain/go-unarr"
 	"github.com/nickalie/go-webpbin"
+	"github.com/yusukebe/go-pngquant"
 	_ "golang.org/x/image/bmp"  // register BMP decoding
 	_ "golang.org/x/image/tiff" // register TIFF decoding
 	_ "golang.org/x/image/webp" // register WebP decoding
@@ -100,7 +101,7 @@ func ExtractArchive(name string) {
 func tImages(n string) {
 	// make these 4 image tasks multithread
 	c := make(chan bool)
-	go func() { ToPng(n, NewExt(n, ".png")); c <- true }()
+	go func() { ToPng(n, NewExt(n, ".png"), 1500); c <- true }()
 	go func() { ToWebp(n, NewExt(n, ".webp")); c <- true }()
 	go func() { MakeThumb(n, 400); c <- true }()
 	go func() { MakeThumb(n, 150); c <- true }()
@@ -125,7 +126,7 @@ func ToWebp(src string, dest string) {
 
 // ToPng converts any supported format to a compressed PNG image.
 // helpful: https://www.programming-books.io/essential/go/images-png-jpeg-bmp-tiff-webp-vp8-gif-c84a45304ec3498081c67aa1ea0d9c49
-func ToPng(src string, dest string) {
+func ToPng(src string, dest string, maxDimension int) {
 	in, err := os.Open(src)
 	checkErr(err)
 	defer in.Close()
@@ -136,12 +137,17 @@ func ToPng(src string, dest string) {
 	// checkErr(err)
 	// fmt.Println("INF:", inf.Size())
 	fmt.Printf("Converting %v to a compressed PNG\n", ext)
+	// cap image size
+	if maxDimension > 0 {
+		fmt.Println("Resizing image down to", maxDimension, "pixels")
+		img = imaging.Thumbnail(img, maxDimension, maxDimension, imaging.Lanczos)
+	}
 	// use the 3rd party CLI tool, pngquant to compress the PNG data
-	//img, err = pngquant.Compress(img, "10")
+	img, err = pngquant.Compress(img, "4")
 	checkErr(err)
 	// adjust any configs to the PNG image encoder
 	cfg := png.Encoder{
-		CompressionLevel: png.DefaultCompression,
+		CompressionLevel: png.BestCompression,
 	}
 	// write the PNG data to img
 	buf := new(bytes.Buffer)
@@ -173,6 +179,8 @@ func MakeThumb(file string, size int) {
 	checkErr(err)
 	src = imaging.Resize(src, size, 0, imaging.Lanczos)
 	src = imaging.CropAnchor(src, size, size, imaging.Center)
+	// use the 3rd party CLI tool, pngquant to compress the PNG data
+	src, err = pngquant.Compress(src, "4")
 	err = imaging.Save(src, NewExt(cp, ".png"))
 	checkErr(err)
 	err = os.Remove(cp)

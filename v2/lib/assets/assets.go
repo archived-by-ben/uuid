@@ -8,7 +8,6 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
-	"math/rand"
 	"os"
 	"path/filepath"
 	"strings"
@@ -16,25 +15,12 @@ import (
 
 	"github.com/Defacto2/uuid/v2/lib/database"
 
+	"github.com/Defacto2/uuid/v2/lib/directories"
+
 	"github.com/dustin/go-humanize"
-	// MySQL database driver
-	_ "github.com/go-sql-driver/mysql"
+
+	_ "github.com/go-sql-driver/mysql" // MySQL database driver
 )
-
-const random = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0987654321 .!?"
-
-// Dir is a collection of paths containing files
-type Dir struct {
-	base   string // base directory path that hosts these other subdirectories
-	uuid   string // path to file downloads with UUID as filenames
-	image  string // path to image previews and thumbnails
-	file   string // path to webapp generated files such as JSON/XML
-	emu    string // path to the DOSee emulation files
-	backup string // path to the backup archives or previously removed files
-	img150 string // path to 150x150 squared thumbnails
-	img400 string // path to 400x400 squared thumbnails
-	img000 string // path to screencaptures and previews
-}
 
 // files are unique UUID values used by the database and filenames
 type files map[string]struct{}
@@ -56,23 +42,9 @@ type scan struct {
 var (
 	empty  = database.Empty{}
 	ignore files
-	p      = Dir{base: "/Users/ben/Defacto2/", uuid: "uuid/", image: "images/", file: "files/"}
 	paths  []string // a collection of directories
+	d      = directories.D
 )
-
-// Init initializes the subdirectories and UUID structure
-func Init(create bool) Dir {
-	p.emu = p.base + p.file + "emularity.zip/"
-	p.backup = p.base + p.file + "backups/"
-	p.img000 = p.base + p.image + "000x/"
-	p.img400 = p.base + p.image + "400x/"
-	p.img150 = p.base + p.image + "150x/"
-	p.uuid = p.base + p.uuid
-	if create {
-		createPlaceHolders()
-	}
-	return p
-}
 
 // AddTarFile saves the result of a fileWalk file into a TAR archive at path as the source file name.
 // Source: cloudfoundry/archiver (https://github.com/cloudfoundry/archiver/blob/master/compressor/write_tar.go)
@@ -121,13 +93,13 @@ func Clean(delete bool, friendly bool, result string, target string) {
 	output := result
 	switch target {
 	case "all":
-		paths = append(paths, p.uuid, p.emu, p.backup, p.img000, p.img400, p.img150)
+		paths = append(paths, d.UUID, d.Emu, d.Backup, d.Img000, d.Img400, d.Img150)
 	case "download":
-		paths = append(paths, p.uuid, p.backup)
+		paths = append(paths, d.UUID, d.Backup)
 	case "emulation":
-		paths = append(paths, p.emu)
+		paths = append(paths, d.Emu)
 	case "image":
-		paths = append(paths, p.img000, p.img400, p.img150)
+		paths = append(paths, d.Img000, d.Img400, d.Img150)
 	}
 	// connect to the database
 	rows, m := database.CreateUUIDMap()
@@ -188,13 +160,13 @@ func backup(s *scan, list []os.FileInfo) {
 	}
 	// identify which files should be backed up
 	baks := make(map[string]string)
-	baks[p.uuid] = "uuid"
-	baks[p.img150] = "img-150xthumbs"
-	baks[p.img400] = "img-400xthumbs"
-	baks[p.img000] = "img-captures"
+	baks[d.UUID] = "uuid"
+	baks[d.Img150] = "img-150xthumbs"
+	baks[d.Img400] = "img-400xthumbs"
+	baks[d.Img000] = "img-captures"
 	if _, ok := baks[s.path]; ok {
 		t := time.Now()
-		name := fmt.Sprintf("%vbak-%v-%v-%v-%v-%v%v%v.tar", p.backup, baks[s.path], t.Year(), t.Month(), t.Day(), t.Hour(), t.Minute(), t.Second())
+		name := fmt.Sprintf("%vbak-%v-%v-%v-%v-%v%v%v.tar", d.Backup, baks[s.path], t.Year(), t.Month(), t.Day(), t.Hour(), t.Minute(), t.Second())
 		basepath := s.path
 		// create tar archive
 		newTar, err := os.Create(name)
@@ -248,24 +220,15 @@ func console(flag string) bool {
 	}
 }
 
-// createPlaceHolders generates a collection placeholder files in the UUID subdirectories
-func createPlaceHolders() {
-	createHolderFiles(p.uuid, 1000000, 9)
-	createHolderFiles(p.emu, 1000000, 2)
-	createHolderFiles(p.img000, 1000000, 9)
-	createHolderFiles(p.img400, 500000, 9)
-	createHolderFiles(p.img150, 100000, 9)
-}
-
 // createDirectories generates a series of UUID subdirectories
 func createDirectories() {
-	createDirectory(p.base)
-	createDirectory(p.uuid)
-	createDirectory(p.emu)
-	createDirectory(p.backup)
-	createDirectory(p.img000)
-	createDirectory(p.img400)
-	createDirectory(p.img150)
+	createDirectory(d.Base)
+	createDirectory(d.UUID)
+	createDirectory(d.Emu)
+	createDirectory(d.Backup)
+	createDirectory(d.Img000)
+	createDirectory(d.Img400)
+	createDirectory(d.Img150)
 }
 
 // createDirectory creates a UUID subdirectory provided to path
@@ -282,35 +245,6 @@ func createDirectory(path string) bool {
 		return false
 	}
 	return false
-}
-
-// createHolderFiles generates a number of placeholder files in the given directory
-func createHolderFiles(dir string, size int, number uint) {
-	if number > 9 {
-		log.Fatalf("Invalid prefix %v, %v", number, fmt.Errorf("it must be between 0 and 9"))
-	}
-	var i uint
-	for i = 0; i <= number; i++ {
-		createHolderFile(dir, size, i)
-	}
-}
-
-// createHolderFile generates a placeholder file filled with random text in the given directory,
-// the size of the file determines the number of random characters and the prefix is a digit between
-// 0 and 9 is appended to the filename
-func createHolderFile(dir string, size int, prefix uint) {
-	if prefix > 9 {
-		log.Fatalf("Invalid prefix %v, %v", prefix, fmt.Errorf("it must be between 0 and 9"))
-	}
-	name := fmt.Sprintf("00000000-0000-0000-0000-00000000000%v", prefix)
-	if _, err := os.Stat(dir + name); err == nil {
-		return // don't overwrite existing files
-	}
-	rand.Seed(time.Now().UnixNano())
-	text := []byte(randStringBytes(size))
-	if err := ioutil.WriteFile(dir+name, text, 0644); err != nil {
-		log.Fatal("Failed to write file", err)
-	}
 }
 
 // delete is used by scanPath to remove matched orphans
@@ -365,7 +299,7 @@ func ignoreList(path string) files {
 	i := make(map[string]struct{})
 	i["00000000-0000-0000-0000-000000000000"] = empty
 	i["blank.png"] = empty
-	if path == p.emu {
+	if path == d.Emu {
 		i["g_drive.zip"] = empty
 		i["s_drive.zip"] = empty
 		i["u_drive.zip"] = empty
@@ -373,15 +307,6 @@ func ignoreList(path string) files {
 		i["dosee-core.mem"] = empty
 	}
 	return i
-}
-
-// randStringBytes generates a random string of n x characters
-func randStringBytes(n int) string {
-	b := make([]byte, n)
-	for i := range b {
-		b[i] = random[rand.Int63()%int64(len(random))]
-	}
-	return string(b)
 }
 
 // scanPath gets a list of filenames located in s.path and matches the results against the list generated by CreateUUIDMap

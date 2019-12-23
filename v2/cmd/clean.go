@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/Defacto2/uuid/v2/lib/assets"
+	"github.com/Defacto2/uuid/v2/lib/directories"
 	"github.com/spf13/cobra"
 )
 
@@ -14,7 +15,7 @@ var cleanCmd = &cobra.Command{
 	Short: "Discover or clean orphan files",
 	Long:  ``,
 	Run: func(cmd *cobra.Command, args []string) {
-		assets.Init(makeDirs)
+		directories.Init(makeDirs)
 		assets.Clean(delete, humanize, result, target)
 	},
 }
