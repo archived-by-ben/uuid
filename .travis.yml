@@ -2,7 +2,7 @@ language: go
 
 go:
   - 1.13.x
-  - stable
+#  - stable
 
 env: GO111MODULE=on GOFLAGS='-mod vendor'
 
