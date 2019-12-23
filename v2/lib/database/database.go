@@ -9,12 +9,16 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/Defacto2/uuid/v2/lib/archive"
 	"github.com/Defacto2/uuid/v2/lib/directories"
 
 	_ "github.com/go-sql-driver/mysql" // MySQL database driver
 )
 
-// Connection information for a MySQL database
+// UpdateID is a user id to use with the updatedby column.
+const UpdateID string = "b66dc282-a029-4e99-85db-2cf2892fffcc"
+
+// Connection information for a MySQL database.
 type Connection struct {
 	Name   string // database name
 	User   string // access username
@@ -26,8 +30,16 @@ type Connection struct {
 // See: https://dave.cheney.net/2014/03/25/the-empty-struct
 type Empty struct{}
 
-// IDs are unique UUID values used by the database and filenames
+// IDs are unique UUID values used by the database and filenames.
 type IDs map[string]struct{}
+
+// Record of a file item.
+type Record struct {
+	ID   string // mysql auto increment id
+	UUID string // record unique id
+	File string // absolute path to file
+	Name string // filename
+}
 
 var (
 	d      = Connection{Name: "defacto2-inno", User: "root", Pass: "password", Server: "tcp(localhost:3306)"}
@@ -41,7 +53,7 @@ func recordNew(values []sql.RawBytes) bool {
 	return true
 }
 
-// CreateProof is a placeholder to scan archives
+// CreateProof is a placeholder to scan archives.
 func CreateProof() {
 	db := connect()
 	defer db.Close()
@@ -57,7 +69,6 @@ func CreateProof() {
 	for i := range values {
 		scanArgs[i] = &values[i]
 	}
-	//
 	dir := directories.Init(false)
 	// fetch the rows
 	cnt := 0
@@ -69,11 +80,11 @@ func CreateProof() {
 			continue
 		}
 		cnt++
-		uuid := string(values[1])
-		file := filepath.Join(dir.UUID, uuid)
+		r := Record{ID: string(values[0]), UUID: string(values[1]), Name: string(values[4])}
+		r.File = filepath.Join(dir.UUID, r.UUID)
 		// ping file
-		if _, err := os.Stat(file); os.IsNotExist(err) {
-			println("item", cnt, "missing", file)
+		if _, err := os.Stat(r.File); os.IsNotExist(err) {
+			fmt.Printf("✗ item %v (%v) missing %v\n", cnt, r.ID, r.File)
 			missing++
 			continue
 		}
@@ -82,9 +93,11 @@ func CreateProof() {
 		for i, col := range values {
 			switch columns[i] {
 			case "file_zip_content":
-				// todo check filename extension
-				if col == nil {
-					fmt.Println("archive content needs to be scanned")
+				if col != nil {
+					if u := fileZipContent(r); !u {
+						continue
+					}
+					archive.ExtractArchive(r.File, r.UUID)
 				}
 			case "deletedat", "updatedat": // ignore
 			default:
@@ -105,7 +118,28 @@ func CreateProof() {
 	}
 }
 
-// CreateUUIDMap builds a map of all the unique UUID values stored in the Defacto2 database
+func fileZipContent(r Record) bool {
+	fmt.Printf("archive %v content needs to be scanned\n", r.Name)
+	a, err := archive.ReadArchive(r.File)
+	if err != nil {
+		log.Println(err)
+		return false
+	}
+	Update(r.ID, strings.Join(a, "\n"))
+	return true
+}
+
+// Update is a temp SQL update func.
+func Update(id string, content string) {
+	db := connect()
+	defer db.Close()
+	update, err := db.Prepare("UPDATE files SET file_zip_content=? WHERE id=?")
+	checkErr(err)
+	update.Exec(content, id)
+	log.Println("Updated ID:", id, "file_zip_content =", content)
+}
+
+// CreateUUIDMap builds a map of all the unique UUID values stored in the Defacto2 database.
 func CreateUUIDMap() (int, IDs) {
 	db := connect()
 	defer db.Close()
@@ -125,14 +159,14 @@ func CreateUUIDMap() (int, IDs) {
 	return rc, m
 }
 
-// CheckErr logs any errors
+// checkErr logs any errors.
 func checkErr(err error) {
 	if err != nil {
 		log.Fatal("ERROR: ", err)
 	}
 }
 
-// connect to the database
+// connect to the database.
 func connect() *sql.DB {
 	pw := readPassword()
 	db, err := sql.Open("mysql", fmt.Sprintf("%v:%v@%v/%v", d.User, pw, d.Server, d.Name))
@@ -143,7 +177,7 @@ func connect() *sql.DB {
 	return db
 }
 
-// readPassword attempts to read and return the Defacto2 database user password when stored in a local text file
+// readPassword attempts to read and return the Defacto2 database user password when stored in a local text file.
 func readPassword() string {
 	// fetch database password
 	pwFile, err := os.Open(pwPath)

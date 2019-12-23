@@ -6,6 +6,7 @@ import (
 	"log"
 	"math/rand"
 	"os"
+	"path"
 	"time"
 )
 
@@ -42,6 +43,17 @@ func Init(create bool) Dir {
 		createPlaceHolders()
 	}
 	return D
+}
+
+// Files ...
+func Files(name string) Dir {
+	f := Init(false)
+	f.UUID = path.Join(f.UUID, name)
+	f.Emu = path.Join(f.Emu, name)
+	f.Img000 = path.Join(f.Img000, name)
+	f.Img400 = path.Join(f.Img400, name)
+	f.Img150 = path.Join(f.Img150, name)
+	return f
 }
 
 // createPlaceHolders generates a collection placeholder files in the UUID subdirectories

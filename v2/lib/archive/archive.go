@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/Defacto2/uuid/v2/lib/directories"
 	"github.com/disintegration/imaging"
 	"github.com/dustin/go-humanize"
 	"github.com/gabriel-vasile/mimetype"
@@ -26,26 +27,30 @@ import (
 	_ "golang.org/x/image/webp" // register WebP decoding
 )
 
-var archives = []string{"zip", "tar.gz", "tar", "rar", "gz", "lzh", "lha", "cab", "arj", "arc", "7z"}
-
-// ReadArchive returns a list of files within rar, tar, zip, 7z archives
-func ReadArchive(name string) []string {
-	a, err := unarr.NewArchive(name)
-	checkErr(err)
-	defer a.Close()
-	list, err := a.List()
-	checkErr(err)
-	return list
-}
-
 type task struct {
 	name string // filename
 	size int64  // file size
 	cont bool   // continue, don't scan anymore images
 }
 
+var archives = []string{"zip", "tar.gz", "tar", "rar", "gz", "lzh", "lha", "cab", "arj", "arc", "7z"}
+
+// ReadArchive returns a list of files within rar, tar, zip, 7z archives
+func ReadArchive(name string) ([]string, error) {
+	a, err := unarr.NewArchive(name)
+	if err != nil {
+		return nil, err
+	}
+	defer a.Close()
+	list, err := a.List()
+	if err != nil {
+		return nil, err
+	}
+	return list, nil
+}
+
 // ExtractArchive decompresses and parses an archive
-func ExtractArchive(name string) {
+func ExtractArchive(name string, uuid string) {
 	// create temp dir
 	tempDir, err := ioutil.TempDir("", "extarc-")
 	checkErr(err)
@@ -93,20 +98,23 @@ func ExtractArchive(name string) {
 		}
 	}
 	if n := th.name; n != "" {
-		tImages(n)
+		d := directories.Init(false)
+		tImages(n, uuid, d)
 	}
-	dir(tempDir)
+	//dir(tempDir)
 }
 
-func tImages(n string) {
+func tImages(n string, id string, d directories.Dir) {
+	f := directories.Files(id)
 	// make these 4 image tasks multithread
 	c := make(chan bool)
-	go func() { ToPng(n, NewExt(n, ".png"), 1500); c <- true }()
-	go func() { ToWebp(n, NewExt(n, ".webp")); c <- true }()
+	go func() { ToPng(n, NewExt(f.Img000, ".png"), 1500); c <- true }()
+	go func() { ToWebp(n, NewExt(f.Img000, ".webp")); c <- true }()
 	go func() { MakeThumb(n, 400); c <- true }()
 	go func() { MakeThumb(n, 150); c <- true }()
 	_, _, _, _ = <-c, <-c, <-c, <-c // sync 4 tasks
 	os.Remove(n)
+
 }
 
 // ToWebp converts any support format to a WebP image using a 3rd party library.
@@ -175,13 +183,13 @@ func MakeThumb(file string, size int) {
 	pfx := "_" + fmt.Sprintf("%v", size) + "x"
 	cp := CopyFile(file, pfx)
 	fmt.Println("Generating thumbnail x", size)
-	src, err := imaging.Open(cp)
+	in, err := imaging.Open(cp)
 	checkErr(err)
-	src = imaging.Resize(src, size, 0, imaging.Lanczos)
-	src = imaging.CropAnchor(src, size, size, imaging.Center)
+	in = imaging.Resize(in, size, 0, imaging.Lanczos)
+	in = imaging.CropAnchor(in, size, size, imaging.Center)
 	// use the 3rd party CLI tool, pngquant to compress the PNG data
-	src, err = pngquant.Compress(src, "4")
-	err = imaging.Save(src, NewExt(cp, ".png"))
+	in, err = pngquant.Compress(in, "4")
+	err = imaging.Save(in, NewExt(cp, ".png"))
 	checkErr(err)
 	err = os.Remove(cp)
 	checkErr(err)
