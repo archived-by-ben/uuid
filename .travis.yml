@@ -8,11 +8,13 @@ env: GO111MODULE=on GOFLAGS='-mod vendor'
 
 install: true
 
-before_install: cd V2
+before_install: 
+  - cd v2
 
 before_script:
-    - go install github.com/golangci/golangci-lint/cmd/golangci-lint
+  - go install github.com/golangci/golangci-lint/cmd/golangci-lint
 
 script:
-    - golangci-lint run
-    - go test -v -race ./...
+  - cd V2
+  - golangci-lint run
+  - go test -v -race ./...
