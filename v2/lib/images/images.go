@@ -15,6 +15,7 @@ import (
 	"github.com/Defacto2/uuid/v2/lib/directories"
 	"github.com/Defacto2/uuid/v2/lib/logs"
 	"github.com/disintegration/imaging"
+	"github.com/dustin/go-humanize"
 	"github.com/gabriel-vasile/mimetype"
 	"github.com/nickalie/go-webpbin"
 	"github.com/yusukebe/go-pngquant"
@@ -51,8 +52,8 @@ func Generate(n string, id string, d directories.Dir) {
 	c := make(chan bool)
 	go func() { e := ToPng(n, NewExt(f.Img000, ".png"), 1500); logs.Log(e); c <- true }()
 	go func() { e := ToWebp(n, NewExt(f.Img000, ".webp")); logs.Log(e); c <- true }()
-	go func() { e := ToThumb(n, 400); logs.Log(e); c <- true }()
-	go func() { e := ToThumb(n, 150); logs.Log(e); c <- true }()
+	go func() { e := ToThumb(n, f.Img400, 400); logs.Log(e); c <- true }()
+	go func() { e := ToThumb(n, f.Img150, 150); logs.Log(e); c <- true }()
 	_, _, _, _ = <-c, <-c, <-c, <-c // sync 4 tasks
 	os.Remove(n)
 
@@ -81,10 +82,8 @@ func ToPng(src string, dest string, maxDimension int) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("Converting %v to a compressed PNG\n", ext)
 	// cap image size
 	if maxDimension > 0 {
-		fmt.Println("Resizing image down to", maxDimension, "pixels")
 		img = imaging.Thumbnail(img, maxDimension, maxDimension, imaging.Lanczos)
 	}
 	// use the 3rd party CLI tool, pngquant to compress the PNG data
@@ -108,18 +107,21 @@ func ToPng(src string, dest string, maxDimension int) error {
 		return err
 	}
 	defer out.Close()
-	buf.WriteTo(out)
+	s, err := buf.WriteTo(out)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Converted %v to a compressed PNG, %v\n", ext, humanize.Bytes(uint64(s)))
 	return nil
 }
 
 // ToThumb creates a thumb from an image that is size pixel in width and height.
-func ToThumb(file string, size int) error {
+func ToThumb(file string, saveDir string, size int) error {
 	pfx := "_" + fmt.Sprintf("%v", size) + "x"
 	cp, err := Duplicate(file, pfx)
 	if err != nil {
 		return err
 	}
-	fmt.Println("Generating thumbnail x", size)
 	in, err := imaging.Open(cp)
 	if err != nil {
 		return err
@@ -131,9 +133,15 @@ func ToThumb(file string, size int) error {
 	if err != nil {
 		return err
 	}
-	if err := imaging.Save(in, NewExt(cp, ".png")); err != nil {
+	f := NewExt(cp, ".png")
+	if err := imaging.Save(in, f); err != nil {
 		return err
 	}
+	s := NewExt(saveDir, ".png")
+	if err := os.Rename(f, s); err != nil {
+		return err
+	}
+	fmt.Printf("Generating thumbnail x%v, %v\n", size, pSize(s))
 	if err := os.Remove(cp); err != nil {
 		return err
 	}
@@ -146,11 +154,19 @@ func ToWebp(src string, dest string) error {
 	if m, _ := mimetype.DetectFile(src); m.Extension() == ".webp" {
 		return nil
 	}
-	fmt.Println("Converting to WebP")
 	err := webpbin.NewCWebP().
 		Quality(70).
 		InputFile(src).
 		OutputFile(dest).
 		Run()
+	fmt.Println("Converted to WebP,", pSize(dest))
 	return err
+}
+
+func pSize(name string) string {
+	f, err := os.Stat(name)
+	if err != nil {
+		return ""
+	}
+	return fmt.Sprintf("%v", humanize.Bytes(uint64(f.Size())))
 }

@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -58,7 +57,7 @@ func recordNew(values []sql.RawBytes) bool {
 func CreateProof() error {
 	db := connect()
 	defer db.Close()
-	s := "SELECT `id`,`uuid`,`deletedat`,`createdat`,`filename`,`file_zip_content`"
+	s := "SELECT `id`,`uuid`,`deletedat`,`createdat`,`filename`,`file_zip_content`,`updatedat`"
 	w := "WHERE `section` = 'releaseproof'"
 	rows, err := db.Query(s + "FROM `files`" + w)
 	if err != nil {
@@ -96,23 +95,32 @@ func CreateProof() error {
 		// iterate through each value
 		var value string
 		for i, col := range values {
+			if col == nil {
+				value = "NULL"
+			} else {
+				value = string(col)
+			}
 			switch columns[i] {
+			case "id":
+				fmt.Printf("✓ item %v (%v) ", cnt, value)
+			case "uuid":
+				fmt.Printf("%v, ", value)
+			case "createdat":
+				fmt.Printf("%v, ", value)
+			case "filename":
+				fmt.Printf("%v\n", value)
 			case "file_zip_content":
-				if col != nil {
+				if col == nil { // set to !not to test
 					if u := fileZipContent(r); !u {
 						continue
 					}
 					err := archive.Extract(r.File, r.UUID)
 					logs.Log(err)
 				}
-			case "deletedat", "updatedat": // ignore
+			case "deletedat":
+			case "updatedat": // ignore
 			default:
-				if col == nil {
-					value = "NULL"
-				} else {
-					value = string(col)
-				}
-				fmt.Println(columns[i], ": ", value)
+				fmt.Printf("   %v: %v\n", columns[i], value)
 			}
 		}
 		fmt.Println("---------------")
@@ -126,10 +134,9 @@ func CreateProof() error {
 }
 
 func fileZipContent(r Record) bool {
-	fmt.Printf("archive %v content needs to be scanned\n", r.Name)
 	a, err := archive.Read(r.File)
 	if err != nil {
-		log.Println(err)
+		logs.Log(err)
 		return false
 	}
 	Update(r.ID, strings.Join(a, "\n"))
@@ -140,10 +147,10 @@ func fileZipContent(r Record) bool {
 func Update(id string, content string) {
 	db := connect()
 	defer db.Close()
-	update, err := db.Prepare("UPDATE files SET file_zip_content=? WHERE id=?")
+	update, err := db.Prepare("UPDATE files SET file_zip_content=?,updatedat=NOW(),updatedby=? WHERE id=?")
 	logs.Check(err)
-	update.Exec(content, id)
-	log.Println("Updated ID:", id, "file_zip_content =", content)
+	update.Exec(content, UpdateID, id)
+	fmt.Println("Updated file_zip_content")
 }
 
 // CreateUUIDMap builds a map of all the unique UUID values stored in the Defacto2 database.
