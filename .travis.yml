@@ -1,9 +1,14 @@
+dist: bionic
+
 language: go
 
-go:
-  - latest
-
 env: GO111MODULE=on GOFLAGS='-mod vendor'
+
+go:
+  - 1.x
+
+git:
+  depth: 1
 
 install: true
 
@@ -14,6 +19,5 @@ before_script:
   - go install github.com/golangci/golangci-lint/cmd/golangci-lint
 
 script:
-  - cd V2
   - golangci-lint run
   - go test -v -race ./...
