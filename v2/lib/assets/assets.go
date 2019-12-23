@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/Defacto2/uuid/v2/lib/database"
+	"github.com/Defacto2/uuid/v2/lib/logs"
 
 	"github.com/Defacto2/uuid/v2/lib/directories"
 
@@ -170,7 +171,7 @@ func backup(s *scan, list []os.FileInfo) {
 		basepath := s.path
 		// create tar archive
 		newTar, err := os.Create(name)
-		checkErr(err)
+		logs.Check(err)
 		tw := tar.NewWriter(newTar)
 		defer tw.Close()
 		c := 0
@@ -203,9 +204,8 @@ func backup(s *scan, list []os.FileInfo) {
 		if c == 0 || err != nil {
 			// clean up any loose archives
 			newTar.Close()
-			rm := os.Remove(name)
-			checkErr(err)
-			checkErr(rm)
+			err := os.Remove(name)
+			logs.Check(err)
 		}
 	}
 }
@@ -337,11 +337,4 @@ func scanPath(s scan) (results, error) {
 		fmt.Printf("\n%v orphaned files\n%v drive space consumed\n", r.count, dsc)
 	}
 	return r, nil // number of orphaned files discovered, deletion failures, their cumulative size in bytes
-}
-
-// checkErr logs any errors
-func checkErr(err error) {
-	if err != nil {
-		log.Fatal("ERROR: ", err)
-	}
 }

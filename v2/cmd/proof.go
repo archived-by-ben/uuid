@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"github.com/Defacto2/uuid/v2/lib/database"
+	"github.com/Defacto2/uuid/v2/lib/logs"
 	"github.com/spf13/cobra"
 )
 
@@ -17,7 +18,8 @@ var proofCmd = &cobra.Command{
 	Short: "Batch handler for #proof tagged files",
 	Long:  ``,
 	Run: func(cmd *cobra.Command, args []string) {
-		database.CreateProof()
+		err := database.CreateProof()
+		logs.Check(err)
 		// f := ex[2]
 		// name := "/Users/ben/Downloads/" + f
 		// fmt.Println("File: ", f)

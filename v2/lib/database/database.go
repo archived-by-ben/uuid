@@ -11,6 +11,7 @@ import (
 
 	"github.com/Defacto2/uuid/v2/lib/archive"
 	"github.com/Defacto2/uuid/v2/lib/directories"
+	"github.com/Defacto2/uuid/v2/lib/logs"
 
 	_ "github.com/go-sql-driver/mysql" // MySQL database driver
 )
@@ -54,15 +55,19 @@ func recordNew(values []sql.RawBytes) bool {
 }
 
 // CreateProof is a placeholder to scan archives.
-func CreateProof() {
+func CreateProof() error {
 	db := connect()
 	defer db.Close()
 	s := "SELECT `id`,`uuid`,`deletedat`,`createdat`,`filename`,`file_zip_content`"
 	w := "WHERE `section` = 'releaseproof'"
 	rows, err := db.Query(s + "FROM `files`" + w)
-	checkErr(err)
+	if err != nil {
+		return err
+	}
 	columns, err := rows.Columns()
-	checkErr(err)
+	if err != nil {
+		return err
+	}
 	values := make([]sql.RawBytes, len(columns))
 	// more information: https://github.com/go-sql-driver/mysql/wiki/Examples
 	scanArgs := make([]interface{}, len(values))
@@ -75,7 +80,7 @@ func CreateProof() {
 	missing := 0
 	for rows.Next() {
 		err = rows.Scan(scanArgs...)
-		checkErr(err)
+		logs.Check(err)
 		if new := recordNew(values); new == false {
 			continue
 		}
@@ -97,7 +102,8 @@ func CreateProof() {
 					if u := fileZipContent(r); !u {
 						continue
 					}
-					archive.ExtractArchive(r.File, r.UUID)
+					err := archive.Extract(r.File, r.UUID)
+					logs.Log(err)
 				}
 			case "deletedat", "updatedat": // ignore
 			default:
@@ -111,16 +117,17 @@ func CreateProof() {
 		}
 		fmt.Println("---------------")
 	}
-	checkErr(rows.Err())
+	logs.Check(rows.Err())
 	fmt.Println("Total proofs handled: ", cnt)
 	if missing > 0 {
 		fmt.Println("UUID files not found: ", missing)
 	}
+	return nil
 }
 
 func fileZipContent(r Record) bool {
 	fmt.Printf("archive %v content needs to be scanned\n", r.Name)
-	a, err := archive.ReadArchive(r.File)
+	a, err := archive.Read(r.File)
 	if err != nil {
 		log.Println(err)
 		return false
@@ -134,7 +141,7 @@ func Update(id string, content string) {
 	db := connect()
 	defer db.Close()
 	update, err := db.Prepare("UPDATE files SET file_zip_content=? WHERE id=?")
-	checkErr(err)
+	logs.Check(err)
 	update.Exec(content, id)
 	log.Println("Updated ID:", id, "file_zip_content =", content)
 }
@@ -146,34 +153,27 @@ func CreateUUIDMap() (int, IDs) {
 	// query database
 	var id, uuid string
 	rows, err := db.Query("SELECT `id`,`uuid` FROM `files`")
-	checkErr(err)
+	logs.Check(err)
 	m := IDs{} // this map is to store all the UUID values used in the database
 	// handle query results
 	rc := 0 // row count
 	for rows.Next() {
 		err = rows.Scan(&id, &uuid)
-		checkErr(err)
+		logs.Check(err)
 		m[uuid] = Empty{} // store record `uuid` value as a key name in the map `m` with an empty value
 		rc++
 	}
 	return rc, m
 }
 
-// checkErr logs any errors.
-func checkErr(err error) {
-	if err != nil {
-		log.Fatal("ERROR: ", err)
-	}
-}
-
 // connect to the database.
 func connect() *sql.DB {
 	pw := readPassword()
 	db, err := sql.Open("mysql", fmt.Sprintf("%v:%v@%v/%v", d.User, pw, d.Server, d.Name))
-	checkErr(err)
+	logs.Check(err)
 	// ping the server to make sure the connection works
 	err = db.Ping()
-	checkErr(err)
+	logs.Check(err)
 	return db
 }
 
@@ -188,6 +188,6 @@ func readPassword() string {
 	}
 	defer pwFile.Close()
 	pw, err := ioutil.ReadAll(pwFile)
-	checkErr(err)
+	logs.Check(err)
 	return strings.TrimSpace(fmt.Sprintf("%s", pw))
 }
