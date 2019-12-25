@@ -6,11 +6,14 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var ex = map[uint]string{
-	0: "Yo-Kai_Watch_2_Psychic_Specters_EUR_MULTi7-TRSI.zip",
-	1: "Miitopia_EUR_MULTi6-TRSI.zip",
-	2: "Hey_Pikmin_EUR_MULTi6-TRSI.zip",
-}
+var (
+	// proofAll scan for all proofs, not just new uploads
+	proofAll bool
+	// proofID is an auto-generated id or a uuid
+	proofID string
+	// proofOverwrite overwrite all existing images
+	proofOverwrite bool
+)
 
 // proofCmd represents the proof command
 var proofCmd = &cobra.Command{
@@ -18,17 +21,20 @@ var proofCmd = &cobra.Command{
 	Short: "Batch handler for #proof tagged files",
 	Long:  ``,
 	Run: func(cmd *cobra.Command, args []string) {
-		err := database.CreateProof()
+		var err error
+		switch {
+		case proofID != "":
+			err = database.CreateProof(proofID, proofOverwrite, proofAll)
+		default:
+			err = database.CreateProofs(proofOverwrite, proofAll)
+		}
 		logs.Check(err)
-		// f := ex[2]
-		// name := "/Users/ben/Downloads/" + f
-		// fmt.Println("File: ", f)
-		// l := strings.Join(archive.ReadArchive(name), ",")
-		// fmt.Println("Contains content: ", l)
-		// archive.ExtractArchive(name)
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(proofCmd)
+	proofCmd.Flags().StringVarP(&proofID, "id", "i", "", "id or uuid to handle only one proof")
+	proofCmd.Flags().BoolVar(&proofOverwrite, "overwrite", false, "rescan archives and overwrite all existing images")
+	proofCmd.Flags().BoolVar(&proofAll, "all", false, "scan for all proofs, not just new uploads")
 }

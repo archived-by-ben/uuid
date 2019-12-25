@@ -18,5 +18,5 @@ package main
 import "github.com/Defacto2/uuid/v2/cmd"
 
 func main() {
-  cmd.Execute()
+	cmd.Execute()
 }

@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/Defacto2/uuid/v2/lib/archive"
@@ -13,6 +14,7 @@ import (
 	"github.com/Defacto2/uuid/v2/lib/logs"
 
 	_ "github.com/go-sql-driver/mysql" // MySQL database driver
+	"github.com/google/uuid"
 )
 
 // UpdateID is a user id to use with the updatedby column.
@@ -42,8 +44,10 @@ type Record struct {
 }
 
 var (
-	d      = Connection{Name: "defacto2-inno", User: "root", Pass: "password", Server: "tcp(localhost:3306)"}
-	pwPath string // The path to a secured text file containing the d.User login password
+	// TODO move to configuration
+	d       = Connection{Name: "defacto2-inno", User: "root", Pass: "password", Server: "tcp(localhost:3306)"}
+	proofID string
+	pwPath  string // The path to a secured text file containing the d.User login password
 )
 
 func recordNew(values []sql.RawBytes) bool {
@@ -53,12 +57,29 @@ func recordNew(values []sql.RawBytes) bool {
 	return true
 }
 
-// CreateProof is a placeholder to scan archives.
-func CreateProof() error {
+// CreateProof ...
+func CreateProof(id string, ow bool, all bool) error {
+	if !validUUID(id) && !validID(id) {
+		return fmt.Errorf("invalid id given %q it needs to be an auto-generated MySQL id or an uuid", id)
+	}
+	proofID = id
+	return CreateProofs(ow, all)
+}
+
+// CreateProofs is a placeholder to scan archives.
+func CreateProofs(ow bool, all bool) error {
 	db := connect()
 	defer db.Close()
-	s := "SELECT `id`,`uuid`,`deletedat`,`createdat`,`filename`,`file_zip_content`,`updatedat`"
+	s := "SELECT `id`,`uuid`,`deletedat`,`createdat`,`filename`,`file_zip_content`,`updatedat`,`platform`"
 	w := "WHERE `section` = 'releaseproof'"
+	if proofID != "" {
+		switch {
+		case validUUID(proofID):
+			w = fmt.Sprintf("%v AND `uuid`=%q", w, proofID)
+		case validID(proofID):
+			w = fmt.Sprintf("%v AND `id`=%q", w, proofID)
+		}
+	}
 	rows, err := db.Query(s + "FROM `files`" + w)
 	if err != nil {
 		return err
@@ -77,10 +98,11 @@ func CreateProof() error {
 	// fetch the rows
 	cnt := 0
 	missing := 0
+	// todo move to sep func to allow individual record parsing
 	for rows.Next() {
 		err = rows.Scan(scanArgs...)
 		logs.Check(err)
-		if new := recordNew(values); new == false {
+		if new := recordNew(values); new == false && all == false {
 			continue
 		}
 		cnt++
@@ -110,10 +132,11 @@ func CreateProof() error {
 			case "filename":
 				fmt.Printf("%v\n", value)
 			case "file_zip_content":
-				if col == nil { // set to !not to test
+				if col == nil || ow {
 					if u := fileZipContent(r); !u {
 						continue
 					}
+					// todo: tag platform based on found files
 					err := archive.Extract(r.File, r.UUID)
 					logs.Log(err)
 				}
@@ -147,9 +170,9 @@ func fileZipContent(r Record) bool {
 func Update(id string, content string) {
 	db := connect()
 	defer db.Close()
-	update, err := db.Prepare("UPDATE files SET file_zip_content=?,updatedat=NOW(),updatedby=? WHERE id=?")
+	update, err := db.Prepare("UPDATE files SET file_zip_content=?,updatedat=NOW(),updatedby=?,platform=?,deletedat=NULL,deletedby=NULL WHERE id=?")
 	logs.Check(err)
-	update.Exec(content, UpdateID, id)
+	update.Exec(content, UpdateID, "image", id)
 	fmt.Println("Updated file_zip_content")
 }
 
@@ -197,4 +220,18 @@ func readPassword() string {
 	pw, err := ioutil.ReadAll(pwFile)
 	logs.Check(err)
 	return strings.TrimSpace(fmt.Sprintf("%s", pw))
+}
+
+func validUUID(id string) bool {
+	if _, err := uuid.Parse(id); err != nil {
+		return false
+	}
+	return true
+}
+
+func validID(id string) bool {
+	if _, err := strconv.Atoi(id); err != nil {
+		return false
+	}
+	return true
 }

@@ -3,6 +3,7 @@ module github.com/Defacto2/uuid/v2
 go 1.13
 
 require (
+	github.com/alecthomas/chroma v0.7.0
 	github.com/disintegration/imaging v1.6.2
 	github.com/dsnet/compress v0.0.1 // indirect
 	github.com/dustin/go-humanize v1.0.0
@@ -11,6 +12,7 @@ require (
 	github.com/gen2brain/go-unarr v0.0.0-20190203132630-dd30f8db8e40
 	github.com/go-sql-driver/mysql v1.4.1
 	github.com/golang/snappy v0.0.1 // indirect
+	github.com/google/uuid v1.1.1
 	github.com/mholt/archiver v3.1.1+incompatible // indirect
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/nickalie/go-binwrapper v0.0.0-20190114141239-525121d43c84 // indirect
@@ -22,4 +24,5 @@ require (
 	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8 // indirect
 	github.com/yusukebe/go-pngquant v0.0.0-20160211022948-c4f19d2a5658
 	golang.org/x/image v0.0.0-20191009234506-e7c1f5e7dbb8
+	gopkg.in/yaml.v2 v2.2.4
 )

@@ -44,6 +44,18 @@ func Init(create bool) Dir {
 		createPlaceHolders()
 	}
 	return D
+	/*
+		TODO
+			/var/www/
+			/var/www/files/backups/
+			/var/www/uuid
+			/var/www/images/uuid/original
+			/var/www/images/uuid/150x150
+			/var/www/images/uuid/400x400
+
+			/var/www/incoming/user_submissions/files
+			/var/www/incoming/user_submissions/previews
+	*/
 }
 
 // Files ...
