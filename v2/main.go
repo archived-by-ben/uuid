@@ -1,5 +1,5 @@
 /*
-Copyright © 2019 NAME HERE <EMAIL ADDRESS>
+Copyright © 2019 Ben Garrett <bengarrett77@gmail.com>
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@ limitations under the License.
 */
 package main
 
-import "github.com/Defacto2/uuid/v2/cmd"
+import "github.com/Defacto2/uuid/v2/lib/cmd"
 
 func main() {
 	cmd.Execute()
