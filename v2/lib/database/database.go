@@ -68,7 +68,7 @@ func CreateProof(id string, ow bool, all bool) error {
 
 // CreateProofs is a placeholder to scan archives.
 func CreateProofs(ow bool, all bool) error {
-	db := connect()
+	db := Connect()
 	defer db.Close()
 	s := "SELECT `id`,`uuid`,`deletedat`,`createdat`,`filename`,`file_zip_content`,`updatedat`,`platform`"
 	w := "WHERE `section` = 'releaseproof'"
@@ -168,7 +168,7 @@ func fileZipContent(r Record) bool {
 
 // Update is a temp SQL update func.
 func Update(id string, content string) {
-	db := connect()
+	db := Connect()
 	defer db.Close()
 	update, err := db.Prepare("UPDATE files SET file_zip_content=?,updatedat=NOW(),updatedby=?,platform=?,deletedat=NULL,deletedby=NULL WHERE id=?")
 	logs.Check(err)
@@ -178,7 +178,7 @@ func Update(id string, content string) {
 
 // CreateUUIDMap builds a map of all the unique UUID values stored in the Defacto2 database.
 func CreateUUIDMap() (int, IDs) {
-	db := connect()
+	db := Connect()
 	defer db.Close()
 	// query database
 	var id, uuid string
@@ -196,8 +196,8 @@ func CreateUUIDMap() (int, IDs) {
 	return rc, m
 }
 
-// connect to the database.
-func connect() *sql.DB {
+// Connect to the database.
+func Connect() *sql.DB {
 	pw := readPassword()
 	db, err := sql.Open("mysql", fmt.Sprintf("%v:%v@%v/%v", d.User, pw, d.Server, d.Name))
 	logs.Check(err)

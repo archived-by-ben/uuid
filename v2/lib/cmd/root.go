@@ -10,26 +10,21 @@ import (
 	"github.com/spf13/viper"
 )
 
-const configFilename = ".df2.yaml"
+const (
+	cfgFilename = ".df2.yaml"
+)
 
 var (
-	// Quiet disables most printing or output to terminal
-	quiet    bool = false
+	quiet    bool = false // quiet disables most printing or output to terminal
 	cfgFile  string
 	home, _  = os.UserHomeDir()
-	filepath = path.Join(home, configFilename)
+	filepath = path.Join(home, cfgFilename)
 )
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "uuid",
-	Short: "A brief description of your application",
-	Long: `A longer description that spans multiple lines and likely contains
-examples and usage of using your application. For example:
-
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
+	Short: "A tool to configure and manage defacto2.net",
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -43,9 +38,8 @@ func Execute() {
 
 func init() {
 	cobra.OnInitialize(initConfig)
-	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", fmt.Sprintf("config file (default is $HOME/%s)", configFilename))
-	rootCmd.PersistentFlags().BoolVarP(&quiet, "quiet", "q", false, "disable most feedback to terminal")
-	rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", fmt.Sprintf("config file (default is $HOME/%s)", cfgFilename))
+	rootCmd.PersistentFlags().BoolVarP(&quiet, "quiet", "q", false, "suspend feedback to the terminal")
 }
 
 // initConfig reads in config file and ENV variables if set.
@@ -56,7 +50,7 @@ func initConfig() {
 		viper.SetConfigFile(cfgFile)
 	} else {
 		viper.AddConfigPath(home)
-		viper.SetConfigName(configFilename)
+		viper.SetConfigName(cfgFilename)
 	}
 
 	viper.AutomaticEnv() // read in environment variables that match
