@@ -6,6 +6,7 @@ import (
 	"math/rand"
 	"os"
 	"path"
+	"reflect"
 	"time"
 
 	"github.com/Defacto2/uuid/v2/lib/logs"
@@ -29,16 +30,16 @@ type Dir struct {
 }
 
 var (
-	// D are directory paths to UUID named files
+	// D are directory paths to UUID named files.
 	D = Dir{}
 )
 
-// Init initializes the subdirectories and UUID structure
+// Init initializes the subdirectories and UUID structure.
 func Init(create bool) Dir {
 	D.Base = viper.GetString("directory.root")
 	D.UUID = viper.GetString("directory.uuid")
 	D.Emu = viper.GetString("directory.emu")
-	D.Backup = viper.GetString("directory.emu")
+	D.Backup = viper.GetString("directory.backup")
 	D.Img000 = viper.GetString("directory.000")
 	D.Img400 = viper.GetString("directory.400")
 	D.Img150 = viper.GetString("directory.150")
@@ -49,7 +50,7 @@ func Init(create bool) Dir {
 	return D
 }
 
-// Files ...
+// Files initializes the full path filenames for a UUID.
 func Files(name string) Dir {
 	f := Init(false)
 	f.UUID = path.Join(f.UUID, name)
@@ -60,18 +61,18 @@ func Files(name string) Dir {
 	return f
 }
 
-// createDirectories generates a series of UUID subdirectories
+// createDirectories generates a series of UUID subdirectories.
 func createDirectories() {
-	createDirectory(D.Base)
-	createDirectory(D.UUID)
-	createDirectory(D.Emu)
-	createDirectory(D.Backup)
-	createDirectory(D.Img000)
-	createDirectory(D.Img400)
-	createDirectory(D.Img150)
+	v := reflect.ValueOf(D)
+	// iterate through the D struct values
+	for i := 0; i < v.NumField(); i++ {
+		if d := fmt.Sprintf("%v", v.Field(i).Interface()); d != "" {
+			createDirectory(d)
+		}
+	}
 }
 
-// createDirectory creates a UUID subdirectory provided to path
+// createDirectory creates a UUID subdirectory provided to path.
 func createDirectory(path string) bool {
 	src, err := os.Stat(path)
 	if os.IsNotExist(err) {
@@ -87,7 +88,7 @@ func createDirectory(path string) bool {
 	return false
 }
 
-// createPlaceHolders generates a collection placeholder files in the UUID subdirectories
+// createPlaceHolders generates a collection placeholder files in the UUID subdirectories.
 func createPlaceHolders() {
 	createHolderFiles(D.UUID, 1000000, 9)
 	createHolderFiles(D.Emu, 1000000, 2)
@@ -96,7 +97,7 @@ func createPlaceHolders() {
 	createHolderFiles(D.Img150, 100000, 9)
 }
 
-// createHolderFiles generates a number of placeholder files in the given directory
+// createHolderFiles generates a number of placeholder files in the given directory.
 func createHolderFiles(dir string, size int, number uint) {
 	if number > 9 {
 		logs.Check(errPrefix(number))
@@ -109,7 +110,7 @@ func createHolderFiles(dir string, size int, number uint) {
 
 // createHolderFile generates a placeholder file filled with random text in the given directory,
 // the size of the file determines the number of random characters and the prefix is a digit between
-// 0 and 9 is appended to the filename
+// 0 and 9 is appended to the filename.
 func createHolderFile(dir string, size int, prefix uint) {
 	if prefix > 9 {
 		logs.Check(errPrefix(prefix))
@@ -126,7 +127,7 @@ func createHolderFile(dir string, size int, prefix uint) {
 	}
 }
 
-// randStringBytes generates a random string of n x characters
+// randStringBytes generates a random string of n x characters.
 func randStringBytes(n int) string {
 	b := make([]byte, n)
 	for i := range b {
