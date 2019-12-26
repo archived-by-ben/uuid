@@ -102,7 +102,7 @@ func CreateProofs(ow bool, all bool) error {
 	for rows.Next() {
 		err = rows.Scan(scanArgs...)
 		logs.Check(err)
-		if new := recordNew(values); new == false && all == false {
+		if new := recordNew(values); !new && !all {
 			continue
 		}
 		cnt++
@@ -172,8 +172,9 @@ func Update(id string, content string) {
 	defer db.Close()
 	update, err := db.Prepare("UPDATE files SET file_zip_content=?,updatedat=NOW(),updatedby=?,platform=?,deletedat=NULL,deletedby=NULL WHERE id=?")
 	logs.Check(err)
-	update.Exec(content, UpdateID, "image", id)
-	fmt.Println("Updated file_zip_content")
+	r, err := update.Exec(content, UpdateID, "image", id)
+	logs.Check(err)
+	fmt.Println("Updated file_zip_content", r)
 }
 
 // CreateUUIDMap builds a map of all the unique UUID values stored in the Defacto2 database.

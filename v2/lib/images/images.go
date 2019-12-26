@@ -54,7 +54,7 @@ func Generate(n string, id string, d directories.Dir) {
 	go func() { e := ToWebp(n, NewExt(f.Img000, ".webp")); logs.Log(e); c <- true }()
 	go func() { e := ToThumb(n, f.Img400, 400); logs.Log(e); c <- true }()
 	go func() { e := ToThumb(n, f.Img150, 150); logs.Log(e); c <- true }()
-	_, _, _, _ = <-c, <-c, <-c, <-c // sync 4 tasks
+	<-c // sync 4 tasks
 	os.Remove(n)
 
 }

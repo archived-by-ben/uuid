@@ -13,6 +13,6 @@ import (
 
 func BenchmarkCalculate(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		Extract("/Users/ben/Downloads/Miitopia_EUR_MULTi6-TRSI.zip", "")
+		_ = Extract("/Users/ben/Downloads/Miitopia_EUR_MULTi6-TRSI.zip", "")
 	}
 }

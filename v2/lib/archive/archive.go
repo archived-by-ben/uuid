@@ -22,7 +22,7 @@ type task struct {
 	cont bool   // continue, don't scan anymore images
 }
 
-var archives = []string{"zip", "tar.gz", "tar", "rar", "gz", "lzh", "lha", "cab", "arj", "arc", "7z"}
+// var archives = []string{"zip", "tar.gz", "tar", "rar", "gz", "lzh", "lha", "cab", "arj", "arc", "7z"}
 
 // Extract decompresses and parses an archive
 func Extract(name string, uuid string) error {
@@ -38,8 +38,10 @@ func Extract(name string, uuid string) error {
 		return err
 	}
 	defer a.Close()
-	a.Extract(tempDir)
-	//fmt.Println("temp: ", tempDir)
+	err = a.Extract(tempDir)
+	if err != nil {
+		return err
+	}
 	files, err := ioutil.ReadDir(tempDir)
 	if err != nil {
 		return err
@@ -81,8 +83,10 @@ func Extract(name string, uuid string) error {
 		d := directories.Init(false)
 		images.Generate(n, uuid, d)
 	}
+	if x := false; !x {
+		dir(tempDir)
+	}
 	return nil
-	//dir(tempDir)
 }
 
 // NewExt replaces or appends the extension to a file name.

@@ -42,6 +42,7 @@ var sitemapCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(sitemapCmd)
 }
+
 func create() {
 	// query
 	var id string
@@ -59,19 +60,19 @@ func create() {
 		err = rows.Scan(&id, &createdat, &updatedat)
 		logs.Check(err)
 		// check for valid createdat and updatedat entries
-		_, udErr := updatedat.Value()
-		_, cdErr := createdat.Value()
-		if udErr != nil || cdErr != nil {
+		_, errU := updatedat.Value()
+		_, errC := createdat.Value()
+		if errU != nil || errC != nil {
 			continue // skip record (log in future?)
 		}
 		// parse createdat and updatedat to use in the <lastmod> tag
-		var lastmodString string
-		if udValid := updatedat.Valid; udValid == true {
-			lastmodString = updatedat.String
-		} else if cdValid := createdat.Valid; cdValid == true {
-			lastmodString = createdat.String
+		var lastmod string
+		if udValid := updatedat.Valid; udValid {
+			lastmod = updatedat.String
+		} else if cdValid := createdat.Valid; cdValid {
+			lastmod = createdat.String
 		}
-		lastmodFields := strings.Fields(lastmodString)
+		lastmodFields := strings.Fields(lastmod)
 		// append url
 		var lastmodValue string // blank by default; <lastmod> tag has `omitempty` set, so it won't display if no value is given
 		if len(lastmodFields) > 0 {
@@ -115,12 +116,12 @@ func obfuscateParam(param string) string {
 }
 
 func reverseInt(value int) int {
-	intString := strconv.Itoa(value)
-	newString := ""
-	for x := len(intString); x > 0; x-- {
-		newString += string(intString[x-1])
+	int := strconv.Itoa(value)
+	new := ""
+	for x := len(new); x > 0; x-- {
+		new += string(int[x-1])
 	}
-	newInt, err := strconv.Atoi(newString)
+	newInt, err := strconv.Atoi(new)
 	logs.Check(err)
 	return newInt
 }
