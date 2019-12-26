@@ -1,17 +1,26 @@
 package cmd
 
 import (
+	"bufio"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"os/exec"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/Defacto2/uuid/v2/lib/logs"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v2"
+)
+
+const (
+	// portMin is the lowest permitted network port
+	portMin int = 0
+	// portMax is the largest permitted network port
+	portMax int = 65535
 )
 
 var (
@@ -137,31 +146,26 @@ var configSetCmd = &cobra.Command{
 		default:
 			fmt.Printf("\n%s is currently set to %q\n", name, s)
 		}
-		// switch {
-		// case name == "create.layout":
-		// 	fmt.Printf("Set a new value, choices: %s\n", ci(createLayouts()))
-		// 	promptSlice(createLayouts())
-		// case name == "info.format":
-		// 	fmt.Printf("Set a new value, choice: %s\n", ci(infoFormats))
-		// 	promptSlice(infoFormats)
-		// case name == "version.format":
-		// 	fmt.Printf("Set a new value, choices: %s\n", ci(versionFormats))
-		// 	promptSlice(versionFormats)
-		// case name == "create.server-port":
-		// 	fmt.Printf("Set a new HTTP port, choices: %v-%v (recommended: 8080)\n", portMin, portMax)
-		// 	promptPort()
-		// case name == "create.meta.generator":
-		// 	fmt.Printf("<meta name=\"generator\" content=\"RetroTxt v%s\">\nEnable this element? [y/n]\n", GoBuildVer)
-		// 	promptBool()
-		// case s == "":
-		// 	promptMeta(s)
-		// 	fmt.Printf("\nSet a new value or leave blank to keep it disabled: \n")
-		// 	promptString(s)
-		// default:
-		// 	promptMeta(s)
-		// 	fmt.Printf("\nSet a new value, leave blank to keep as-is or use a dash [-] to disable: \n")
-		// 	promptString(s)
-		// }
+		switch {
+		case name == "connection.server.host":
+			fmt.Printf("\nSet a new host, leave blank to keep as-is (recommended: localhost): \n")
+			promptString(s)
+		case name == "connection.server.protocol":
+			fmt.Printf("\nSet a new protocol, leave blank to keep as-is (recommended: tcp): \n")
+			promptString(s)
+		case name == "connection.server.port":
+			fmt.Printf("Set a new MySQL port, choices: %v-%v (recommended: 3306)\n", portMin, portMax)
+			promptPort()
+		case name[:10] == "directory.":
+			fmt.Printf("\nSet a new directory or leave blank to keep as-is: \n")
+			promptDir()
+		case name == "connection.password":
+			fmt.Printf("\nSet a new MySQL user encrypted or plaintext password or leave blank to keep as-is: \n")
+			promptString(s)
+		default:
+			fmt.Printf("\nSet a new value, leave blank to keep as-is or use a dash [-] to disable: \n")
+			promptString(s)
+		}
 	},
 }
 
@@ -170,8 +174,6 @@ func InitDefaults() {
 	viper.SetDefault("connection.name", "defacto2-inno")
 	viper.SetDefault("connection.user", "root")
 	viper.SetDefault("connection.password", "password")
-
-	//tcp(localhost:3306)
 	viper.SetDefault("connection.server.protocol", "tcp")
 	viper.SetDefault("connection.server.host", "localhost")
 	viper.SetDefault("connection.server.port", "3306")
@@ -216,6 +218,99 @@ func configMissing(name string, suffix string) {
 	os.Exit(1)
 }
 
+func promptCheck(cnt int) {
+	switch {
+	case cnt == 2:
+		fmt.Println("Ctrl+C to keep the existing port")
+	case cnt >= 4:
+		os.Exit(1)
+	}
+}
+
+func promptDir() {
+	// allow multiple word user input
+	scanner := bufio.NewScanner(os.Stdin)
+	var save string
+	for scanner.Scan() {
+		txt := scanner.Text()
+		switch txt {
+		case "":
+			os.Exit(0)
+		case "-":
+			save = ""
+		default:
+			save = txt
+		}
+		if _, err := os.Stat(save); os.IsNotExist(err) {
+			fmt.Fprintln(os.Stderr, "will not save the change:", err)
+			os.Exit(1)
+		}
+		viper.Set(configSetName, save)
+		fmt.Printf("%s %s is now set to \"%v\"\n", "✓", configSetName, save)
+		writeConfig(true)
+		os.Exit(0)
+	}
+	if err := scanner.Err(); err != nil {
+		fmt.Fprintln(os.Stderr, "reading standard input:", err)
+		os.Exit(1)
+	}
+}
+
+func promptPort() {
+	var input string
+	cnt := 0
+	for {
+		input = ""
+		cnt++
+		fmt.Scanln(&input)
+		if input == "" {
+			promptCheck(cnt)
+			continue
+		}
+		i, err := strconv.ParseInt(input, 10, 0)
+		if err != nil && input != "" {
+			fmt.Printf("%s %v\n", "✗", input)
+			promptCheck(cnt)
+			continue
+		}
+		// check that the input a valid port
+		if v := validPort(int(i)); !v {
+			fmt.Printf("%s %v, is out of range\n", "✗", input)
+			promptCheck(cnt)
+			continue
+		}
+		viper.Set(configSetName, i)
+		fmt.Printf("%s %s is now set to \"%v\"\n", "✓", configSetName, i)
+		writeConfig(true)
+		os.Exit(0)
+	}
+}
+
+func promptString(keep string) {
+	// allow multiple word user input
+	scanner := bufio.NewScanner(os.Stdin)
+	var save string
+	for scanner.Scan() {
+		txt := scanner.Text()
+		switch txt {
+		case "":
+			os.Exit(0)
+		case "-":
+			save = ""
+		default:
+			save = txt
+		}
+		viper.Set(configSetName, save)
+		fmt.Printf("%s %s is now set to \"%v\"\n", "✓", configSetName, save)
+		writeConfig(true)
+		os.Exit(0)
+	}
+	if err := scanner.Err(); err != nil {
+		fmt.Fprintln(os.Stderr, "reading standard input:", err)
+		os.Exit(1)
+	}
+}
+
 func promptYN(query string, yesDefault bool) bool {
 	var input string
 	y := "Y"
@@ -248,4 +343,11 @@ func writeConfig(update bool) {
 		s = "Updated the"
 	}
 	fmt.Println(s+" config file at:", filepath)
+}
+
+func validPort(p int) bool {
+	if p < portMin || p > portMax {
+		return false
+	}
+	return true
 }
