@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/Defacto2/uuid/v2/lib/logs"
+	"github.com/spf13/viper"
 )
 
 // random characters used in randStringBytes()
@@ -22,40 +23,30 @@ type Dir struct {
 	File   string // path to webapp generated files such as JSON/XML
 	Emu    string // path to the DOSee emulation files
 	Backup string // path to the backup archives or previously removed files
+	Img000 string // path to screencaptures and previews
 	Img150 string // path to 150x150 squared thumbnails
 	Img400 string // path to 400x400 squared thumbnails
-	Img000 string // path to screencaptures and previews
 }
 
 var (
 	// D are directory paths to UUID named files
-	D = Dir{Base: "/Users/ben/Defacto2", UUID: "uuid", Image: "images", File: "files"}
+	D = Dir{}
 )
 
 // Init initializes the subdirectories and UUID structure
 func Init(create bool) Dir {
-	D.Emu = path.Join(D.Base, D.File, "emularity.zip")
-	D.Backup = path.Join(D.Base, D.File, "backups")
-	D.Img000 = path.Join(D.Base, D.Image, "000x")
-	D.Img400 = path.Join(D.Base, D.Image, "400x")
-	D.Img150 = path.Join(D.Base, D.Image, "150x")
-	D.UUID = path.Join(D.Base, D.UUID)
+	D.Base = viper.GetString("directory.root")
+	D.UUID = viper.GetString("directory.uuid")
+	D.Emu = viper.GetString("directory.emu")
+	D.Backup = viper.GetString("directory.emu")
+	D.Img000 = viper.GetString("directory.000")
+	D.Img400 = viper.GetString("directory.400")
+	D.Img150 = viper.GetString("directory.150")
 	if create {
+		createDirectories()
 		createPlaceHolders()
 	}
 	return D
-	/*
-		TODO
-			/var/www/
-			/var/www/files/backups/
-			/var/www/uuid
-			/var/www/images/uuid/original
-			/var/www/images/uuid/150x150
-			/var/www/images/uuid/400x400
-
-			/var/www/incoming/user_submissions/files
-			/var/www/incoming/user_submissions/previews
-	*/
 }
 
 // Files ...
@@ -67,6 +58,33 @@ func Files(name string) Dir {
 	f.Img400 = path.Join(f.Img400, name)
 	f.Img150 = path.Join(f.Img150, name)
 	return f
+}
+
+// createDirectories generates a series of UUID subdirectories
+func createDirectories() {
+	createDirectory(D.Base)
+	createDirectory(D.UUID)
+	createDirectory(D.Emu)
+	createDirectory(D.Backup)
+	createDirectory(D.Img000)
+	createDirectory(D.Img400)
+	createDirectory(D.Img150)
+}
+
+// createDirectory creates a UUID subdirectory provided to path
+func createDirectory(path string) bool {
+	src, err := os.Stat(path)
+	if os.IsNotExist(err) {
+		if err := os.MkdirAll(path, 0755); err != nil {
+			logs.Check(err)
+		}
+		return true
+	}
+	if src.Mode().IsRegular() {
+		fmt.Println(path, "already exist as a file!")
+		return false
+	}
+	return false
 }
 
 // createPlaceHolders generates a collection placeholder files in the UUID subdirectories
@@ -97,12 +115,13 @@ func createHolderFile(dir string, size int, prefix uint) {
 		logs.Check(errPrefix(prefix))
 	}
 	name := fmt.Sprintf("00000000-0000-0000-0000-00000000000%v", prefix)
-	if _, err := os.Stat(dir + name); err == nil {
+	fn := path.Join(dir, name)
+	if _, err := os.Stat(fn); err == nil {
 		return // don't overwrite existing files
 	}
 	rand.Seed(time.Now().UnixNano())
 	text := []byte(randStringBytes(size))
-	if err := ioutil.WriteFile(dir+name, text, 0644); err != nil {
+	if err := ioutil.WriteFile(fn, text, 0644); err != nil {
 		logs.Log(err)
 	}
 }

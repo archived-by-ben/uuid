@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -33,18 +33,17 @@ type results struct {
 }
 
 type scan struct {
-	path     string       // directory to scan
-	output   string       // print output
-	delete   bool         // delete any detected orphan files
-	friendly bool         // humanize values shown by print output
-	m        database.IDs // UUID values fetched from the database
+	path   string       // directory to scan
+	delete bool         // delete any detected orphan files
+	human  bool         // humanize values shown by print output
+	m      database.IDs // UUID values fetched from the database
 }
 
 var (
 	empty  = database.Empty{}
 	ignore files
 	paths  []string // a collection of directories
-	d      = directories.D
+	d      = directories.Init(false)
 )
 
 // AddTarFile saves the result of a fileWalk file into a TAR archive at path as the source file name.
@@ -90,8 +89,10 @@ func AddTarFile(path, name string, tw *tar.Writer) error {
 }
 
 // Clean walks through and scans directories containing UUID files and erases any orphans that cannot be matched to the database
-func Clean(delete bool, friendly bool, result string, target string) {
-	output := result
+func Clean(target string, delete bool, human bool) {
+	if d.Base == "" {
+		d = directories.Init(false)
+	}
 	switch target {
 	case "all":
 		paths = append(paths, d.UUID, d.Emu, d.Backup, d.Img000, d.Img400, d.Img150)
@@ -104,40 +105,30 @@ func Clean(delete bool, friendly bool, result string, target string) {
 	}
 	// connect to the database
 	rows, m := database.CreateUUIDMap()
-	if console(output) {
-		fmt.Printf("\nThe following files do not match any UUIDs in the database\n")
-	}
+	logs.Cli("\nThe following files do not match any UUIDs in the database\n")
 	// parse directories
 	var sum results
 	for p := range paths {
-		s := scan{path: paths[p], output: output, delete: delete, friendly: friendly, m: m}
+		s := scan{path: paths[p], delete: delete, human: human, m: m}
 		r, err := scanPath(s)
-		if err != nil {
-			if console(s.output) {
-				fmt.Printf("Error: %v\n", err)
-			} else {
-				log.Printf("ERROR:%v\n", err)
-			}
-		}
+		logs.Log(err)
 		sum.bytes += r.bytes
 		sum.count += r.count
 		sum.fails += r.fails
 	}
 	// output a summary of the results
-	if console(output) {
-		fmt.Printf("\nTotal orphaned files discovered %v out of %v\n", humanize.Comma(int64(sum.count)), humanize.Comma(int64(rows)))
-		if sum.fails > 0 {
-			fmt.Printf("Due to errors, %v files could not be deleted\n", sum.fails)
+	logs.Cli(fmt.Sprintf("\nTotal orphaned files discovered %v out of %v\n", humanize.Comma(int64(sum.count)), humanize.Comma(int64(rows))))
+	if sum.fails > 0 {
+		logs.Cli(fmt.Sprintf("Due to errors, %v files could not be deleted\n", sum.fails))
+	}
+	if len(paths) > 1 {
+		var pts string
+		if human {
+			pts = humanize.Bytes(uint64(sum.bytes))
+		} else {
+			pts = fmt.Sprintf("%v B", sum.bytes)
 		}
-		if len(paths) > 1 {
-			var pts string
-			if friendly {
-				pts = humanize.Bytes(uint64(sum.bytes))
-			} else {
-				pts = fmt.Sprintf("%v B", sum.bytes)
-			}
-			fmt.Printf("%v drive space consumed\n", pts)
-		}
+		logs.Cli(fmt.Sprintf("%v drive space consumed\n", pts))
 	}
 }
 
@@ -193,8 +184,8 @@ func backup(s *scan, list []os.FileInfo) {
 			}
 			if _, ok := archive[name]; ok {
 				c++
-				if c == 1 && console(s.output) {
-					fmt.Printf("Archiving these files before deletion\n\n")
+				if c == 1 {
+					logs.Cli("Archiving these files before deletion\n\n")
 				}
 				return AddTarFile(path, name, tw)
 			}
@@ -208,43 +199,6 @@ func backup(s *scan, list []os.FileInfo) {
 			logs.Check(err)
 		}
 	}
-}
-
-// console parses output flag to decide if to print to stdout
-func console(flag string) bool {
-	switch flag {
-	case "none":
-		return false
-	default:
-		return true
-	}
-}
-
-// createDirectories generates a series of UUID subdirectories
-func createDirectories() {
-	createDirectory(d.Base)
-	createDirectory(d.UUID)
-	createDirectory(d.Emu)
-	createDirectory(d.Backup)
-	createDirectory(d.Img000)
-	createDirectory(d.Img400)
-	createDirectory(d.Img150)
-}
-
-// createDirectory creates a UUID subdirectory provided to path
-func createDirectory(path string) bool {
-	src, err := os.Stat(path)
-	if os.IsNotExist(err) {
-		if err := os.MkdirAll(path, 0755); err != nil {
-			panic(err)
-		}
-		return true
-	}
-	if src.Mode().IsRegular() {
-		fmt.Println(path, "already exist as a file!")
-		return false
-	}
-	return false
 }
 
 // delete is used by scanPath to remove matched orphans
@@ -267,28 +221,21 @@ func delete(s *scan, list []os.FileInfo) results {
 			var del string
 			if s.delete {
 				del = fmt.Sprintf("  ✔")
-				fn := fmt.Sprintf("%v%v", s.path, file.Name())
-				rm := os.Remove(fn)
-				if rm != nil {
-					if console(s.output) {
-						log.Printf("ERROR:%v\n", rm)
-					} else {
-						del = fmt.Sprintf("  ✖")
-						r.fails++
-					}
+				fn := path.Join(s.path, file.Name())
+				if rm := os.Remove(fn); rm != nil {
+					del = fmt.Sprintf("  ✖\n%v", rm)
+					r.fails++
 				}
 			}
-			if console(s.output) {
-				var fs, mt string
-				if s.friendly {
-					fs = humanize.Bytes(uint64(file.Size()))
-					mt = file.ModTime().Format("2006-Jan-02 15:04:05")
-				} else {
-					fs = fmt.Sprint(file.Size())
-					mt = fmt.Sprint(file.ModTime())
-				}
-				fmt.Printf("%v.\t%-44s\t%v\t%v  %v%v\n", r.count, base, fs, file.Mode(), mt, del)
+			var fs, mt string
+			if s.human {
+				fs = humanize.Bytes(uint64(file.Size()))
+				mt = file.ModTime().Format("2006-Jan-02 15:04:05")
+			} else {
+				fs = fmt.Sprint(file.Size())
+				mt = fmt.Sprint(file.ModTime())
 			}
+			logs.Cli(fmt.Sprintf("%v.\t%-44s\t%v\t%v  %v%v\n", r.count, base, fs, file.Mode(), mt, del))
 		}
 	}
 	return r
@@ -311,9 +258,7 @@ func ignoreList(path string) files {
 
 // scanPath gets a list of filenames located in s.path and matches the results against the list generated by CreateUUIDMap
 func scanPath(s scan) (results, error) {
-	if console(s.output) {
-		fmt.Printf("\nResults from %v\n\n", s.path)
-	}
+	logs.Cli(fmt.Sprintf("\nResults from %v\n\n", s.path))
 	// query file system
 	list, err := ioutil.ReadDir(s.path)
 	if err != nil {
@@ -327,14 +272,12 @@ func scanPath(s scan) (results, error) {
 	}
 	// list and if requested, delete orphaned files
 	r := delete(&s, list)
-	if console(s.output) {
-		var dsc string
-		if s.friendly {
-			dsc = humanize.Bytes(uint64(r.bytes))
-		} else {
-			dsc = fmt.Sprintf("%v B", r.bytes)
-		}
-		fmt.Printf("\n%v orphaned files\n%v drive space consumed\n", r.count, dsc)
+	var dsc string
+	if s.human {
+		dsc = humanize.Bytes(uint64(r.bytes))
+	} else {
+		dsc = fmt.Sprintf("%v B", r.bytes)
 	}
+	logs.Cli(fmt.Sprintf("\n%v orphaned files\n%v drive space consumed\n", r.count, dsc))
 	return r, nil // number of orphaned files discovered, deletion failures, their cumulative size in bytes
 }

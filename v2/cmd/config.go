@@ -5,12 +5,10 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
-	"runtime"
 	"sort"
 	"strings"
 
 	"github.com/Defacto2/uuid/v2/lib/logs"
-	"github.com/alecthomas/chroma/quick"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v2"
@@ -60,7 +58,9 @@ var configDeleteCmd = &cobra.Command{
 		}
 		switch promptYN("Confirm the file deletion", false) {
 		case true:
-			logs.Check(fmt.Errorf("Could not remove %v %v", cfg, os.Remove(cfg)))
+			if err := os.Remove(cfg); err != nil {
+				logs.Check(fmt.Errorf("Could not remove %v %v", cfg, err))
+			}
 			fmt.Println("The file is deleted")
 		}
 	},
@@ -76,10 +76,7 @@ var configEditCmd = &cobra.Command{
 		}
 		var edit string
 		if err := viper.BindEnv("editor", "EDITOR"); err != nil {
-			editors := []string{"nano", "vim", "emacs"}
-			if runtime.GOOS == "windows" {
-				editors = append(editors, "notepad++.exe", "notepad.exe")
-			}
+			editors := []string{"micro", "nano", "vim"}
 			for _, editor := range editors {
 				if _, err := exec.LookPath(editor); err == nil {
 					edit = editor
@@ -109,12 +106,11 @@ var configInfoCmd = &cobra.Command{
 	Use:   "info",
 	Short: "View settings configured by the config",
 	Run: func(cmd *cobra.Command, args []string) {
-		println("These are the default configurations used by the commands of RetroTxt when no flags are given.\n")
+		println("These are the default configurations used by this tool when no flags are given.\n")
 		sets, err := yaml.Marshal(viper.AllSettings())
 		logs.Check(err)
-		if err := quick.Highlight(os.Stdout, string(sets), "yaml", "terminal256", infoStyles); err != nil {
-			fmt.Println(string(sets))
-		}
+		fmt.Println("config file:", filepath)
+		fmt.Println(string(sets))
 		println()
 	},
 }
@@ -169,7 +165,30 @@ var configSetCmd = &cobra.Command{
 	},
 }
 
+// InitDefaults initialises flag and configuration defaults.
+func InitDefaults() {
+	viper.SetDefault("connection.name", "defacto2-inno")
+	viper.SetDefault("connection.user", "root")
+	viper.SetDefault("connection.password", "password")
+
+	//tcp(localhost:3306)
+	viper.SetDefault("connection.server.protocol", "tcp")
+	viper.SetDefault("connection.server.host", "localhost")
+	viper.SetDefault("connection.server.port", "3306")
+
+	viper.SetDefault("directory.root", "/var/www")
+	viper.SetDefault("directory.backup", "/var/www/files/backups")
+	viper.SetDefault("directory.emu", "/var/www/uuid/emularity.zip")
+	viper.SetDefault("directory.uuid", "/var/www/uuid")
+	viper.SetDefault("directory.000", "/var/www/images/uuid/original")
+	viper.SetDefault("directory.150", "/var/www/images/uuid/150x150")
+	viper.SetDefault("directory.400", "/var/www/images/uuid/400x400")
+	viper.SetDefault("directory.incoming.files", "/var/www/incoming/user_submissions/files")
+	viper.SetDefault("directory.incoming.previews", "/var/www/incoming/user_submissions/previews")
+}
+
 func init() {
+	InitDefaults()
 	rootCmd.AddCommand(configCmd)
 	configCmd.AddCommand(configCreateCmd)
 	configCreateCmd.Flags().BoolVarP(&fileOverwrite, "overwrite", "y", false, "overwrite any existing config file")
@@ -221,13 +240,12 @@ func promptYN(query string, yesDefault bool) bool {
 func writeConfig(update bool) {
 	bs, err := yaml.Marshal(viper.AllSettings())
 	logs.Check(err)
-	d, err := os.UserHomeDir()
 	logs.Check(err)
-	err = ioutil.WriteFile(d+"/.df2.yaml", bs, 0660)
+	err = ioutil.WriteFile(filepath, bs, 0660)
 	logs.Check(err)
 	s := "Created a new"
 	if update {
 		s = "Updated the"
 	}
-	fmt.Println(s+" config file at:", d+"/.df2.yaml")
+	fmt.Println(s+" config file at:", filepath)
 }

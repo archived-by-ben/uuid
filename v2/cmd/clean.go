@@ -16,7 +16,7 @@ var cleanCmd = &cobra.Command{
 	Long:  ``,
 	Run: func(cmd *cobra.Command, args []string) {
 		directories.Init(makeDirs)
-		assets.Clean(delete, humanize, result, target)
+		assets.Clean(target, delete, humanize)
 	},
 }
 
@@ -24,8 +24,6 @@ var (
 	delete   bool
 	humanize bool
 	makeDirs bool
-	result   string
-	results  []string = []string{"text", "quiet"}
 	target   string
 	targets  []string = []string{"all", "download", "emulation", "image"}
 )
@@ -33,7 +31,6 @@ var (
 func init() {
 	rootCmd.AddCommand(cleanCmd)
 	cleanCmd.Flags().StringVarP(&target, "target", "t", "all", "what file section to clean"+options(targets))
-	cleanCmd.Flags().StringVarP(&result, "result", "r", "text", "print format for the results of clean"+options(results))
 	cleanCmd.Flags().BoolVarP(&delete, "delete", "d", false, "erase all discovered files to free up drive space")
 	cleanCmd.Flags().BoolVar(&humanize, "humanize", true, "humanize file sizes and date times")
 	cleanCmd.Flags().BoolVar(&makeDirs, "makedirs", false, "generate uuid directories and placeholder files")
