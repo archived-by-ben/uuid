@@ -2,7 +2,6 @@
 _Defacto2 manager of UUID named files_
 
 [![Go Report Card](https://goreportcard.com/badge/github.com/Defacto2/uuid)](https://goreportcard.com/report/github.com/Defacto2/uuid) 
-[![Build Status](https://travis-ci.org/Defacto2/uuid.svg?branch=master)](https://travis-ci.org/Defacto2/uuid)
 
 [Created in Go](https://golang.org/doc/install), to build from source.
 
